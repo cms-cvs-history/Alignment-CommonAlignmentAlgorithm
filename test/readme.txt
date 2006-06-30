@@ -15,3 +15,10 @@ and writes new reco file
 Reads reco file, writes minireco file (filtering tracks with pt>10 GeV
 and putting them into TkAlDST)
 
+- trackrefit.cfg
+
+Reads minireco file and refits the tracks
+
+- alignment.cfg
+
+Reads minireco file and runs AlignmentProducer
