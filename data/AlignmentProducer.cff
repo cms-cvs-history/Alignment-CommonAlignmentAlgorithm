@@ -67,6 +67,9 @@
     # string TTRHBuilder       =   "WithTrackAngle"
     string TTRHBuilder       =   "WithoutRefit"
 
+    string parameterSelector = "111111"
+    string alignableSelector = "AllAlignables"
+
     PSet CSA06AlignmentAlgorithm = {
       string outfile = "Alignment.root"
       bool verbosity = 1
