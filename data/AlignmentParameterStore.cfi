@@ -1,0 +1,12 @@
+
+PSet ParameterStore =
+{
+    untracked bool UseExtendedCorrelations = false
+
+    PSet ExtendedCorrelationsConfig =
+    {
+	int32 MaxUpdates = 5000
+	double CutValue = 0.95
+	double Weight = 0.5
+    }
+}
