@@ -1,9 +1,0 @@
-PSet ReferenceTrajectoryFactory =
-{
-  bool ReverseHits = true
-  string MaterialEffects = "Combined"
-  #string MaterialEffects = "EnergyLoss"
-  #string MaterialEffects = "None"
-  double ParticleMass = 0.10565836 #muons
-  #double ParticleMass =  0.00051100 #electrons
-}
