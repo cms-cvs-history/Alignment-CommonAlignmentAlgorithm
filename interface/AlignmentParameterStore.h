@@ -9,15 +9,14 @@
 #include "Alignment/CommonAlignmentAlgorithm/interface/AlignmentCorrelationsStore.h"
 // needed for  AlignableShifts, AlignablePositions:
 #include "Alignment/CommonAlignmentAlgorithm/interface/AlignableData.h"
-#include "Alignment/CommonAlignment/interface/AlignableDetOrUnitPtr.h"
 
 /// \class AlignmentParameterStore 
 ///
 /// Basic class for management of alignment parameters and correlations 
 ///
-///  $Date: 2007/03/22 14:27:41 $
-///  $Revision: 1.10 $
-/// (last update by $Author: fronga $)
+///  $Date: 2007/03/16 16:33:52 $
+///  $Revision: 1.9 $
+/// (last update by $Author: flucke $)
 
 class GeomDet;
 class Alignable;
@@ -40,13 +39,9 @@ public:
   /// destructor 
   virtual ~AlignmentParameterStore();
 
-  /// select parameters
-  /// (for backward compatibility, use with vector<AlignableDetOrUnitPtr> as argument instead)
-  CompositeAlignmentParameters
-    selectParameters( const std::vector <AlignableDet*>& alignabledets ) const;
   /// select parameters 
   CompositeAlignmentParameters
-    selectParameters( const std::vector <AlignableDetOrUnitPtr>& alignabledets ) const;
+  selectParameters( const std::vector <AlignableDet*>& alignabledets ) const;
 
   /// update parameters 
   void updateParameters(const CompositeAlignmentParameters& aap);
@@ -69,8 +64,8 @@ public:
   /// Obsolete: Use AlignableNavigator::alignableDetFromGeomDet and alignableFromAlignableDet
 /*   Alignable* alignableFromGeomDet( const GeomDet* geomDet ) const; */
 
-  /// get Alignable corresponding to given AlignableDet (non-const ref. argument since might be returned)
-  Alignable* alignableFromAlignableDet( AlignableDetOrUnitPtr alignableDet ) const;
+  /// get Alignable corresponding to given AlignableDet (non-const argument since might be returned)
+  Alignable* alignableFromAlignableDet( AlignableDet* alignableDet ) const;
 
   /// Obsolete: Use AlignableNavigator::alignableDetFromDetId and alignableFromAlignableDet
 /*   Alignable* alignableFromDetId(const unsigned int& detId) const; */
