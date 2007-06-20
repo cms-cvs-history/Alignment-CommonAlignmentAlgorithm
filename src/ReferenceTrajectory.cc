@@ -1,7 +1,7 @@
 //  Author     : Gero Flucke (based on code by Edmund Widl replacing ORCA's TkReferenceTrack)
 //  date       : 2006/09/17
-//  last update: $Date: 2007/03/16 16:37:52 $
-//  by         : $Author: flucke $
+//  last update: $Date: 2007/03/22 14:27:41 $
+//  by         : $Author: fronga $
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/ReferenceTrajectory.h"
 
@@ -58,6 +58,14 @@ ReferenceTrajectory::ReferenceTrajectory(const TrajectoryStateOnSurface &refTsos
 
 
 //__________________________________________________________________________________
+
+ReferenceTrajectory::ReferenceTrajectory( unsigned int nPar, unsigned int nHits ) :
+  ReferenceTrajectoryBase( nPar, nHits )
+{}
+
+
+//__________________________________________________________________________________
+
 
 bool ReferenceTrajectory::construct(const TrajectoryStateOnSurface &refTsos, 
 				    const TransientTrackingRecHit::ConstRecHitContainer &recHits,
