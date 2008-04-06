@@ -1,3 +1,4 @@
+block AlignmentParameterStore = {
 
 PSet ParameterStore =
 {
@@ -9,4 +10,6 @@ PSet ParameterStore =
 	double CutValue = 0.95
 	double Weight = 0.5
     }
+}
+
 }
