@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4 $
-///  $Date: 2012/09/20 13:17:23 $
+///  $Revision: 1.4.2.1 $
+///  $Date: 2013/02/14 14:52:46 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -36,7 +36,6 @@
 #include "TFile.h"
 #include "TString.h"
 
-// #include <iostream>
 #include <vector>
 #include <map>
 #include <sstream>
