@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6 $
-///  $Date: 2012/10/25 11:07:37 $
+///  $Revision: 1.6.2.1 $
+///  $Date: 2013/02/14 14:52:47 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -421,6 +421,8 @@ void SiStripLorentzAngleCalibration::checkBackPlaneFractionMap(const edm::EventS
   // Filled and valid? => Just return!
   // FIXME: Why called twice?? Should we better do
   // if (!(backPlaneFractionMap_.empty() || watchBackPlaneRcd_.check(setup))) return;
+  // or simply 
+  // if (!watchBackPlaneRcd_.check(setup))) return;
   if (!backPlaneFractionMap_.empty() && !watchBackPlaneRcd_.check(setup)) return;
 
   // All module types, see StripCPE constructor:
