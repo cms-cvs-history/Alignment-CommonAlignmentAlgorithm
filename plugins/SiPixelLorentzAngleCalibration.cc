@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.3 $
-///  $Date: 2012/09/19 14:11:49 $
+///  $Revision: 1.4 $
+///  $Date: 2012/09/20 13:17:23 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -19,11 +19,13 @@
 
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/SiPixelDetId/interface/PXBDetId.h"
+#include "DataFormats/SiPixelDetId/interface/PXFDetId.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/ESWatcher.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
@@ -36,6 +38,7 @@
 
 // #include <iostream>
 #include <vector>
+#include <map>
 #include <sstream>
 
 class SiPixelLorentzAngleCalibration : public IntegratedCalibrationBase
@@ -67,7 +70,7 @@ public:
 				   const EventInfo &eventInfo) const;
 
   /// Setting the determined parameter identified by index,
-  /// should return false if out-of-bounds, true otherwise.
+  /// returns false if out-of-bounds, true otherwise.
   virtual bool setParameter(unsigned int index, double value);
 
   /// Setting the determined parameter uncertainty identified by index,
@@ -75,7 +78,7 @@ public:
   virtual bool setParameterError(unsigned int index, double error);
 
   /// Return current value of parameter identified by index.
-  /// Should return 0. if index out-of-bounds.
+  /// Return 0. if index out-of-bounds.
   virtual double getParameter(unsigned int index) const;
 
   /// Return current value of parameter identified by index.
@@ -111,7 +114,7 @@ private:
   /// First run of iov (0 if iovNum not treated).
   edm::RunNumber_t firstRunOfIOV(unsigned int iovNum) const;
 
-  void writeTree(const SiPixelLorentzAngle *lorentzAngle, const char *treeName) const;
+  void writeTree(const SiPixelLorentzAngle *lorentzAngle, const std::map<unsigned int,float>* errors, const char *treeName) const;
   SiPixelLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
 
   const bool saveToDB_;
@@ -141,8 +144,14 @@ SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::Parame
     siPixelLorentzAngleInput_(0)
 {
   // FIXME: Which granularity, leading to how many parameters?
-  parameters_.resize(2, 0.); // currently two parameters (ring1-4, 5-8), start value 0.
-  paramUncertainties_.resize(2, 0.); // dito for errors
+//  parameters_.resize(2, 0.); // currently two parameters (ring1-4, 5-8), start value 0.
+//  paramUncertainties_.resize(2, 0.); // dito for errors
+//  parameters_.resize(349, 0.); // BPIX:6, 58 IOVs, start value 0.
+//  paramUncertainties_.resize(349, 0.); // dito for errors
+//  parameters_.resize(1072, 0.); // currently two parameters BPIX:6, FPIX:2, 134 IOVs, start value 0.
+//  paramUncertainties_.resize(1072, 0.); // dito for errors
+  parameters_.resize(1274, 0.); // BPIX:24, FPIX:2, 49 IOVs, start value 0.
+  paramUncertainties_.resize(1274, 0.); // dito for errors
 
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
                             << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
@@ -195,6 +204,16 @@ SiPixelLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
       // shift due to LA: dx = tan(LA) * dz/2 = mobility * B_y * dz/2,
       // '-' since we have derivative of the residual r = trk -hit
       const double xDerivative = bFieldLocal.y() * dZ * -0.5; // parameter is mobility!
+
+//      const PXBDetId bdet(hit.det()->geographicalId());
+//      if(bdet.subdetId()==PixelSubdetector::PixelBarrel){
+//	printf("TPB: layer: %d ring: %d B: %.5f\n",bdet.layer(),bdet.module(),bFieldLocal.y());
+//      }
+//      const PXFDetId fdet(hit.det()->geographicalId());
+//      if(fdet.subdetId()==PixelSubdetector::PixelEndcap){
+//	printf("TPF: side: %d B: %.5f\n",fdet.side(),bFieldLocal.y());
+//      }
+
       if (xDerivative) { // If field is zero, this is zero: do not return it
 	const Values derivs(xDerivative, 0.); // yDerivative = 0.
 	outDerivInds.push_back(ValuesIndexPair(derivs, index));
@@ -272,17 +291,21 @@ void SiPixelLorentzAngleCalibration::endOfJob()
   }
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::endOfJob" << out.str();
 
+  std::map<unsigned int,float> errors;	  // Array of errors for each detId
+
   // now write 'input' tree
   const SiPixelLorentzAngle *input = this->getLorentzAnglesInput(); // never NULL
   const std::string treeName(this->name() + '_');
-  this->writeTree(input, (treeName + "input").c_str());
+  this->writeTree(input, &errors, (treeName + "input").c_str());
   if (input->getLorentzAngles().empty()) {
     edm::LogError("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::endOfJob"
 			       << "Input Lorentz angle map is empty, skip writing output!";
     return;
   }
 
+
   for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
+//  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
     cond::Time_t firstRunOfIOV = this->firstRunOfIOV(iIOV);
     SiPixelLorentzAngle *output = new SiPixelLorentzAngle;
     // Loop on map of values from input and add (possible) parameter results
@@ -292,11 +315,15 @@ void SiPixelLorentzAngleCalibration::endOfJob()
       const unsigned int detId = iterIdValue->first; // key of map is DetId
       // Nasty: putLorentzAngle(..) takes float by reference - not even const reference!
       float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
+//      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
       output->putLorentzAngle(detId, value); // put result in output
+      int parameterIndex = this->getParameterIndexFromDetId(detId, firstRunOfIOV);
+      float error = getParameterError(parameterIndex);
+      errors[detId]=error;
     }
 
     // Write this even for mille jobs?
-    this->writeTree(output, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    this->writeTree(output, &errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;
@@ -388,7 +415,15 @@ double SiPixelLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
   const int index = this->getParameterIndexFromDetId(detId, run);
-
+//  const PXBDetId id(detId);
+//  if (id.det() == DetId::Tracker && ( id.subdetId() == PixelSubdetector::PixelBarrel || id.subdetId() == PixelSubdetector::PixelEndcap)) {
+//    edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::getParameterForDetId" 
+//      << "SubDetId: " << id.subdetId()
+//      << " Layer: " << id.layer() 
+//      << " Module: " << id.module() 
+//      << " Run: " << run
+//      << " Index: " << index;
+//  }
   return (index < 0 ? 0. : parameters_[index]);
 }
 
@@ -401,36 +436,90 @@ int SiPixelLorentzAngleCalibration::getParameterIndexFromDetId(unsigned int detI
   
   // FIXME: Extend to configurable granularity? 
   //        Including treatment of run dependence?
-  const PXBDetId id(detId);
-  if (id.det() == DetId::Tracker && id.subdetId() == PixelSubdetector::PixelBarrel) {
-    if (id.module() >= 1 && id.module() <= 4) return 0;
-    if (id.module() >= 5 && id.module() <= 8) return 1;
+  const PXBDetId temp_id(detId);
+  const unsigned int nLayers=3;
+  const unsigned int nRings=8;
+  if (temp_id.det() != DetId::Tracker || ( temp_id.subdetId() != PixelSubdetector::PixelBarrel && temp_id.subdetId() != PixelSubdetector::PixelEndcap)) return -1;
+
+
+  int iovNum=-1;
+  for(unsigned int iov=0; iov<this->numIovs(); iov++) {
+    if(run >= this->firstRunOfIOV(iov)) iovNum=iov;
+  }
+  if(iovNum<0) {
     edm::LogWarning("Alignment")
+      << "@SUB=SiPixelLorentzAngleCalibration::getParameterIndexFromDetId"
+      << "IOV not determined for current run: " << run << " => skip!";
+    return -1;
+  }
+
+  if(temp_id.subdetId() == PixelSubdetector::PixelBarrel) {
+    const PXBDetId id(detId);
+
+    if(id.layer()<1 || id.layer()>nLayers) {
+      edm::LogWarning("Alignment")
 	<< "@SUB=SiPixelLorentzAngleCalibration::getParameterIndexFromDetId"
-	<< "Module should be 1-8, but is " << id.module() << " => skip!";
+	<< "Layer should be 1-3, but is " << id.layer() << "=> skip!";
+      return -1;
+    }
+
+//    if (id.module() >= 1 && id.module() <= 4) return iovNum*nLayers*2+(id.layer()-1)*2+0; else    // Just BPIX 3layers * 2Zhalves
+//    if (id.module() >= 5 && id.module() <= 8) return iovNum*nLayers*2+(id.layer()-1)*2+1; else
+
+//    if (id.module() >= 1 && id.module() <= 4) return iovNum*(nLayers*2+2)+(id.layer()-1)*2+0; else  // BPIX 3layers * 2Zhalves and FPIX 2sides
+//    if (id.module() >= 5 && id.module() <= 8) return iovNum*(nLayers*2+2)+(id.layer()-1)*2+1; else
+
+    if(id.module() >= 1 && id.module() <= 8)return iovNum*(nLayers*nRings+2)+(id.layer()-1)*(nRings)+(id.module()-1); // BPIX 3layers * 8Rings and FPIX 2sides
+
+    edm::LogWarning("Alignment")
+      << "@SUB=SiPixelLorentzAngleCalibration::getParameterIndexFromDetId"
+      << "Module should be 1-8, but is " << id.module() << " => skip!";
+//  } else if(id.subdetId() == PixelSubdetector::PixelEndcap) return 348;   // Just BPIX 3layers * 2Zhalves
+
+//  } else if(temp_id.subdetId() == PixelSubdetector::PixelEndcap) {  // BPIX 3layers * 2Zhalves and FPIX 2sides
+//    const PXFDetId id(detId);
+//    return iovNum*(nLayers*2+2)+(nLayers-1)*2+2+id.side();
+//  }
+
+  } else if(temp_id.subdetId() == PixelSubdetector::PixelEndcap) {  // BPIX 3layers * 8Rings and FPIX 2sides
+    const PXFDetId id(detId);
+    return iovNum*(nLayers*nRings+2)+nLayers*nRings+(id.side()-1);
   }
 
   return -1;
+
 }
 
 //======================================================================
 unsigned int SiPixelLorentzAngleCalibration::numIovs() const
 {
   // FIXME: Needed to include treatment of run dependence!
-  return 1; 
+//  return 1; 
+//  return 58; 
+//  return 134;
+//  return 119;	  // 100 pb-1
+  return 49;	// 300 pb-1
 }
 
 //======================================================================
 edm::RunNumber_t SiPixelLorentzAngleCalibration::firstRunOfIOV(unsigned int iovNum) const
 {
   // FIXME: Needed to include treatment of run dependence!
-  if (iovNum < this->numIovs()) return 1;
+//  if (iovNum < this->numIovs()) return 1;
+//  else return 0;
+//  unsigned int runNumbers[6] = {1,189147,190782,191718,193093,194896}; // 6 IOVs
+//  unsigned int runNumbers[58] = {1,190707,190895,191086,191226,191271,191700,191811,191845,193336,193621,194050,194108,194120,194199,194225,194315,194428,194455,194480,194627,194691,194711,194789,194912,195016,195113,195163,195266,195304,195378,195397,195399,195540,195552,195655,195757,195774,195915,195937,195950,196096,196197,196218,196250,196353,196364,196433,196438,196452,196453,196531,198212,198230,198271,198487,198955,198969};    // 58 IOVs
+//  unsigned int runNumbers[134] = {1,190707,190895,191086,191226,191271,191700,191811,191845,193336,193621,194050,194108,194120,194199,194225,194315,194428,194455,194480,194627,194691,194711,194789,194912,195016,195113,195163,195266,195304,195378,195397,195399,195540,195552,195655,195757,195774,195915,195937,195950,196096,196197,196218,196250,196353,196364,196433,196438,196452,196453,196531,198212,198230,198271,198487,198955,198969,199021,199319,199409,199435,199569,199608,199703,199754,199812,199833,199864,199876,199960,200041,200075,200091,200190,200244,200369,200473,200519,200525,200600,200786,200991,201097,201168,201191,201278,201410,201424,201602,201624,201625,201671,201707,201802,201824,202016,202045,202060,202084,202087,202178,202237,202272,202304,202328,202472,202478,202504,202973,203002,203894,203912,203987,204113,204250,204541,204553,204563,204564,204577,204601,205158,205215,205238,205311,205344,205595,205620,205667,205694,205774,205826,205921};  // 119 IOVs
+//  unsigned int runNumbers[119] = {1,190738,191056,191226,191271,191721,191834,193336,193621,194050,194108,194150,194210,194314,194424,194429,194479,194533,194691,194711,194789,194912,195016,195113,195163,195266,195304,195378,195397,195399,195540,195552,195655,195758,195774,195915,195947,195950,196197,196218,196250,196362,196364,196437,196452,196453,198063,198230,198271,198487,198955,198969,199021,199319,199409,199435,199571,199608,199703,199754,199812,199833,199864,199876,199960,200041,200075,200091,200190,200244,200381,200473,200519,200532,200600,200991,201097,201168,201191,201278,201613,201657,201671,201707,201802,202013,202016,202045,202060,202084,202087,202178,202237,202272,202314,202389,202478,202504,202973,203002,203894,203912,203987,204113,204250,204554,204564,204577,204601,205158,205217,205238,205311,205344,205617,205667,205718,205826,205921}; // 119 IOVs
+  unsigned int runNumbers[49] = {1,191226,191834,193998,194115,194315,194480,194711,194912,195147,195304,195398,195645,195775,195948,196203,196349,196438,196531,198272,198955,199021,199409,199569,199699,199832,199876,200049,200190,200473,200600,201164,201196,201611,201671,201817,202054,202088,202272,202477,202972,203894,204101,204554,204577,205193,205339,205666,205781}; // 49 IOVs
+  if (iovNum < this->numIovs()) return runNumbers[iovNum];
   else return 0;
+
 }
 
 
 //======================================================================
-void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorentzAngle,
+void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorentzAngle, const std::map<unsigned int,float> *errors, 
 					       const char *treeName) const
 {
   if (!lorentzAngle) return;
@@ -445,14 +534,18 @@ void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorent
   TTree *tree = new TTree(treeName, treeName);
   unsigned int id = 0;
   float value = 0.;
+  float error = 0.;
   tree->Branch("detId", &id, "detId/i");
   tree->Branch("value", &value, "value/F");
+  tree->Branch("error", &error, "error/F");
 
+  std::map<unsigned int,float> errors_ = *errors;
   for (auto iterIdValue = lorentzAngle->getLorentzAngles().begin();
        iterIdValue != lorentzAngle->getLorentzAngles().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
+    error = (errors_.count(id)>0 && (int)errors_.size()>0)?errors_[id]:0.f;
     tree->Fill();
   }
   tree->Write();

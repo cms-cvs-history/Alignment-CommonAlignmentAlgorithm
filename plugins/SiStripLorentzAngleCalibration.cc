@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.5 $
-///  $Date: 2012/09/20 13:17:24 $
+///  $Revision: 1.6 $
+///  $Date: 2012/10/25 11:07:37 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -26,6 +26,7 @@
 #include "FWCore/Framework/interface/ESWatcher.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
@@ -71,7 +72,7 @@ public:
 				   const EventInfo &eventInfo) const;
 
   /// Setting the determined parameter identified by index,
-  /// should return false if out-of-bounds, true otherwise.
+  /// returns false if out-of-bounds, true otherwise.
   virtual bool setParameter(unsigned int index, double value);
 
   /// Setting the determined parameter uncertainty identified by index,
@@ -79,7 +80,7 @@ public:
   virtual bool setParameterError(unsigned int index, double error);
 
   /// Return current value of parameter identified by index.
-  /// Should return 0. if index out-of-bounds.
+  /// Returns 0. if index out-of-bounds.
   virtual double getParameter(unsigned int index) const;
 
   /// Return current value of parameter identified by index.
@@ -119,7 +120,7 @@ private:
   /// First run of iov (0 if iovNum not treated).
   edm::RunNumber_t firstRunOfIOV(unsigned int iovNum) const;
 
-  void writeTree(const SiStripLorentzAngle *lorentzAngle, const char *treeName) const;
+  void writeTree(const SiStripLorentzAngle *lorentzAngle, const std::map<unsigned int,float> *errors, const char *treeName) const;
   SiStripLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
 
   const std::string readoutModeName_;
@@ -310,10 +311,12 @@ void SiStripLorentzAngleCalibration::endOfJob()
   }
   edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration::endOfJob" << out.str();
 
+  std::map<unsigned int, float> errors;	// Array of errors for each detId
+
   // now write 'input' tree
   const SiStripLorentzAngle *input = this->getLorentzAnglesInput(); // never NULL
   const std::string treeName(this->name() + '_' + readoutModeName_ + '_');
-  this->writeTree(input, (treeName + "input").c_str());
+  this->writeTree(input, &errors, (treeName + "input").c_str());
 
   if (input->getLorentzAngles().empty()) {
     edm::LogError("Alignment") << "@SUB=SiStripLorentzAngleCalibration::endOfJob"
@@ -333,10 +336,13 @@ void SiStripLorentzAngleCalibration::endOfJob()
       // Nasty: putLorentzAngle(..) takes float by reference - not even const reference!
       float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
       output->putLorentzAngle(detId, value); // put result in output
+      int parameterIndex = this->getParameterIndexFromDetId(detId, firstRunOfIOV);
+      float error = getParameterError(parameterIndex);
+      errors[detId] = error;
     }
 
     // Write this even for mille jobs?
-    this->writeTree(output, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    this->writeTree(output, &errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;
@@ -537,7 +543,7 @@ edm::RunNumber_t SiStripLorentzAngleCalibration::firstRunOfIOV(unsigned int iovN
 
 
 //======================================================================
-void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorentzAngle,
+void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorentzAngle, const std::map<unsigned int, float> *errors,
 					       const char *treeName) const
 {
   if (!lorentzAngle) return;
@@ -552,14 +558,18 @@ void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorent
   TTree *tree = new TTree(treeName, treeName);
   unsigned int id = 0;
   float value = 0.;
+  float error = 0.;
   tree->Branch("detId", &id, "detId/i");
   tree->Branch("value", &value, "value/F");
+  tree->Branch("error", &error, "error/F");
 
+  std::map<unsigned int, float> errors_ = *errors;
   for (auto iterIdValue = lorentzAngle->getLorentzAngles().begin();
        iterIdValue != lorentzAngle->getLorentzAngles().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
+    error = (errors_.count(id)>0 && (int)errors_.size()>0)?errors_[id]:0.f;
     tree->Fill();
   }
   tree->Write();
