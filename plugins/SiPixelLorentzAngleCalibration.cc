@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.1 $
-///  $Date: 2013/02/14 14:52:46 $
+///  $Revision: 1.4.2.2 $
+///  $Date: 2013/02/14 14:57:03 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -113,7 +113,8 @@ private:
   /// First run of iov (0 if iovNum not treated).
   edm::RunNumber_t firstRunOfIOV(unsigned int iovNum) const;
 
-  void writeTree(const SiPixelLorentzAngle *lorentzAngle, const std::map<unsigned int,float>* errors, const char *treeName) const;
+  void writeTree(const SiPixelLorentzAngle *lorentzAngle,
+		 const std::map<unsigned int,float>& errors, const char *treeName) const;
   SiPixelLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
 
   const bool saveToDB_;
@@ -295,13 +296,13 @@ void SiPixelLorentzAngleCalibration::endOfJob()
   // now write 'input' tree
   const SiPixelLorentzAngle *input = this->getLorentzAnglesInput(); // never NULL
   const std::string treeName(this->name() + '_');
-  this->writeTree(input, &errors, (treeName + "input").c_str());
+  this->writeTree(input, errors, (treeName + "input").c_str()); // empty errors for input...
+
   if (input->getLorentzAngles().empty()) {
     edm::LogError("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::endOfJob"
 			       << "Input Lorentz angle map is empty, skip writing output!";
     return;
   }
-
 
   for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
 //  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
@@ -317,12 +318,11 @@ void SiPixelLorentzAngleCalibration::endOfJob()
 //      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
       output->putLorentzAngle(detId, value); // put result in output
       int parameterIndex = this->getParameterIndexFromDetId(detId, firstRunOfIOV);
-      float error = getParameterError(parameterIndex);
-      errors[detId]=error;
+      errors[detId]= this->getParameterError(parameterIndex);
     }
 
     // Write this even for mille jobs?
-    this->writeTree(output, &errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;
@@ -354,8 +354,8 @@ bool SiPixelLorentzAngleCalibration::checkLorentzAngleInput(const edm::EventSetu
       setup.get<SiPixelLorentzAngleRcd>().get(lorentzAngleHandle);
       if (lorentzAngleHandle->getLorentzAngles() // but only bad if non-identical values
 	  != siPixelLorentzAngleInput_->getLorentzAngles()) { // (comparing maps)
-	// FIXME: Could different maps have same content, but different order?
-	//        Or 'floating point comparison' problem?
+	// Maps are containers sorted by key, but comparison problems may arise from
+	// 'floating point comparison' problems (FIXME?)
 	throw cms::Exception("BadInput")
 	  << "SiPixelLorentzAngleCalibration::checkLorentzAngleInput:\n"
 	  << "Content of SiPixelLorentzAngle changed at run " << eventInfo.eventId_.run()
@@ -518,7 +518,8 @@ edm::RunNumber_t SiPixelLorentzAngleCalibration::firstRunOfIOV(unsigned int iovN
 
 
 //======================================================================
-void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorentzAngle, const std::map<unsigned int,float> *errors, 
+void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorentzAngle,
+					       const std::map<unsigned int,float> &errors, 
 					       const char *treeName) const
 {
   if (!lorentzAngle) return;
@@ -538,13 +539,13 @@ void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorent
   tree->Branch("value", &value, "value/F");
   tree->Branch("error", &error, "error/F");
 
-  std::map<unsigned int,float> errors_ = *errors;
   for (auto iterIdValue = lorentzAngle->getLorentzAngles().begin();
        iterIdValue != lorentzAngle->getLorentzAngles().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
-    error = (errors_.count(id)>0 && (int)errors_.size()>0)?errors_[id]:0.f;
+    auto idErrPairIter = errors.find(id); // find error for this id - if none, fill 0. in tree
+    error = (idErrPairIter != errors.end() ? idErrPairIter->second : 0.f);
     tree->Fill();
   }
   tree->Write();
