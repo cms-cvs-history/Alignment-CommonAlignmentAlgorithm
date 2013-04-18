@@ -6,6 +6,7 @@ SiStripBackplaneCalibration = cms.PSet(
     calibrationName = cms.string('SiStripBackplaneCalibration'),
 
     # Configuration parameters of BackplaneCalibration
+    readoutMode = cms.string('deconvolution'),
     treeFile = cms.string('treeFile.root'), # to store backplane correction values (in-&output)
     mergeTreeFiles = cms.vstring(), # files with input/output from various parallel jobs
     saveToDB = cms.bool(False), # save result in poolDBOutputService
