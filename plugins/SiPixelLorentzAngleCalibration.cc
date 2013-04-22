@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.2 $
-///  $Date: 2013/02/14 14:57:03 $
+///  $Revision: 1.4.2.3 $
+///  $Date: 2013/04/17 09:37:31 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -39,6 +39,7 @@
 #include <vector>
 #include <map>
 #include <sstream>
+#include <functional>
 
 class SiPixelLorentzAngleCalibration : public IntegratedCalibrationBase
 {
@@ -304,6 +305,11 @@ void SiPixelLorentzAngleCalibration::endOfJob()
     return;
   }
 
+  const unsigned int nonZeroParamsOrErrors =   // Any determined value?
+    count_if (parameters_.begin(), parameters_.end(), std::bind2nd(std::not_equal_to<double>(),0.))
+    + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
+               std::bind2nd(std::not_equal_to<double>(), 0.));
+
   for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
 //  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
     cond::Time_t firstRunOfIOV = this->firstRunOfIOV(iIOV);
@@ -321,8 +327,9 @@ void SiPixelLorentzAngleCalibration::endOfJob()
       errors[detId]= this->getParameterError(parameterIndex);
     }
 
-    // Write this even for mille jobs?
-    this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
+      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    }
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;

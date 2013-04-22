@@ -9,8 +9,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : November 2012
-///  $Revision: 1.6.2.2 $
-///  $Date: 2013/02/14 17:09:28 $
+///  $Revision: 1.1.2.2 $
+///  $Date: 2013/04/17 09:50:03 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -46,6 +46,7 @@
 #include <map>
 #include <sstream>
 #include <cstdio>
+#include <functional>
 
 class SiStripBackplaneCalibration : public IntegratedCalibrationBase
 {
@@ -213,6 +214,16 @@ SiStripBackplaneCalibration::derivatives(std::vector<ValuesIndexPair> &outDerivI
   edm::ESHandle<SiStripLatency> latency;  
   setup.get<SiStripLatencyRcd>().get(latency);
   const int16_t mode = latency->singleReadOutMode();
+  // std::cout << "SiStripBackplaneCalibration in mode '" << readoutModeName_ << "' finds mode "
+  //           << mode << std::endl;
+  //
+  // std::vector<SiStripLatency::Latency> latencies = const_cast<SiStripLatency*>(latency.product())->allUniqueLatencyAndModes();
+  // for (auto i = latencies.begin(); i != latencies.end(); ++i) {
+  //   std::cout << static_cast<int>(i->latency) << ", mode "
+  //             << static_cast<int>(i->mode) << ", id_apv " << i->detIdAndApv
+  //             << std::endl;
+  // }
+
   if(mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
       
@@ -334,6 +345,11 @@ void SiStripBackplaneCalibration::endOfJob()
     return;
   }
 
+  const unsigned int nonZeroParamsOrErrors =   // Any determined value?
+    count_if (parameters_.begin(), parameters_.end(), std::bind2nd(std::not_equal_to<double>(),0.))
+    + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
+               std::bind2nd(std::not_equal_to<double>(), 0.));
+
   for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
     cond::Time_t firstRunOfIOV = this->firstRunOfIOV(iIOV);
     SiStripBackPlaneCorrection *output = new SiStripBackPlaneCorrection;
@@ -348,8 +364,9 @@ void SiStripBackplaneCalibration::endOfJob()
       errors[detId] = this->getParameterError(parameterIndex);
     }
 
-    // Write this even for mille jobs?
-    this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
+      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    }
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;

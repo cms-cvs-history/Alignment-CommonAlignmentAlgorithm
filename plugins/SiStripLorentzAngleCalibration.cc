@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.2 $
-///  $Date: 2013/02/14 17:09:28 $
+///  $Revision: 1.6.2.3 $
+///  $Date: 2013/04/17 09:40:55 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -44,6 +44,7 @@
 #include <map>
 #include <sstream>
 #include <cstdio>
+#include <functional>
 
 class SiStripLorentzAngleCalibration : public IntegratedCalibrationBase
 {
@@ -213,7 +214,7 @@ SiStripLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
   edm::ESHandle<SiStripLatency> latency;  
   setup.get<SiStripLatencyRcd>().get(latency);
   const int16_t mode = latency->singleReadOutMode();
-  if(mode == readoutMode_) {
+  if (mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
       
       const int index = this->getParameterIndexFromDetId(hit.det()->geographicalId(),
@@ -325,6 +326,11 @@ void SiStripLorentzAngleCalibration::endOfJob()
     return;
   }
 
+  const unsigned int nonZeroParamsOrErrors =   // Any determined value?
+    count_if (parameters_.begin(), parameters_.end(), std::bind2nd(std::not_equal_to<double>(),0.))
+    + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
+               std::bind2nd(std::not_equal_to<double>(), 0.));
+
   for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
     cond::Time_t firstRunOfIOV = this->firstRunOfIOV(iIOV);
     SiStripLorentzAngle *output = new SiStripLorentzAngle;
@@ -339,8 +345,9 @@ void SiStripLorentzAngleCalibration::endOfJob()
       errors[detId] = this->getParameterError(parameterIndex);
     }
 
-    // Write this even for mille jobs?
-    this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
+      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+    }
 
     if (saveToDB_) { // If requested, write out to DB 
       edm::Service<cond::service::PoolDBOutputService> dbService;
