@@ -7,9 +7,9 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.4 $
-///  $Date: 2013/04/22 08:26:47 $
-///  (last update by $Author: flucke $)
+///  $Revision: 1.4.2.5 $
+///  $Date: 2013/04/23 08:13:27 $
+///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 
@@ -24,7 +24,6 @@
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/ESWatcher.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
-
 #include "Alignment/CommonAlignment/interface/Alignable.h"
 
 #include "FWCore/ServiceRegistry/interface/Service.h"
@@ -418,7 +417,33 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   paramUncertainties_.resize(nparameters, 0.);
   
  
+  //test that only pixel modules have been selected
+  for(unsigned int iAlignableGroup = 0; iAlignableGroup < firstId_.size(); iAlignableGroup++) {
+    const std::list<Alignable*> &alis = LAassignment_.at(iAlignableGroup).first;
+    
+    for(std::list<Alignable*>::const_iterator iAli = alis.begin();
+        iAli != alis.end(); iAli++) {
+      
+      bool pixelmodule = true;
+      if((*iAli)->alignableObjectId() == align::AlignableDetUnit || (*iAli)->alignableObjectId() == align::AlignableDet) {
+        const PXBDetId id((*iAli)->id());
+        if (id.det() != DetId::Tracker) pixelmodule = false;
+        if (id.det() == DetId::Tracker && ( id.subdetId() == PixelSubdetector::PixelBarrel || id.subdetId() == PixelSubdetector::PixelEndcap)) {
+          //nothing
+        } else {
+          pixelmodule = false;
+        }
+      } else {
+        pixelmodule = false;
+      }
 
+      if(!pixelmodule) {
+        throw cms::Exception("BadConfig") 
+          << " Non-pixel modules have been selected for the LA determination in the pixel detector";
+      }
+    }
+  }
+  
  
 }
 
@@ -633,6 +658,11 @@ int SiPixelLorentzAngleCalibration::getParameterIndexFromDetId(unsigned int detI
       //   const PXFDetId id(detId);
       //   index_old = iovNum*(nLayers*nRings+2)+nLayers*nRings+(id.side()-1);
       // }
+
+      // const int index_old = getParameterIndexFromDetId_old(detId,run);
+      // std::cout << "debug indices " << index << " " << index_old << std::endl;
+
+
     }
   }
 
