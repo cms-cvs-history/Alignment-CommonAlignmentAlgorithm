@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.8 $
-///  $Date: 2013/04/23 09:59:53 $
+///  $Revision: 1.4.2.9 $
+///  $Date: 2013/04/23 11:19:00 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -145,7 +145,7 @@ private:
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
   
-  std::set<edm::RunNumber_t> globalRunRange_;
+  std::vector<edm::RunNumber_t> globalRunRange_;
   std::vector<unsigned int> firstId_;//1:1 mapping with LAassignment
   std::vector<std::pair<std::list<Alignable*>, std::vector<edm::RunNumber_t> > > LAassignment_;
 
@@ -303,6 +303,7 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
+  std::set<edm::RunNumber_t> localRunRange;
   unsigned int nparameters = 0;
   unsigned int Id = 0;
   //loop over all LA groups
@@ -387,9 +388,6 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
  
    
     //FIXME: add some checks whether the content of range makes sense?
-
-
-
   
     if(!split) {
       LAassignment_.push_back(std::make_pair(selected_alis, range));
@@ -398,10 +396,11 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
       nparameters += range.size();
     }
     
+   
     edm::RunNumber_t firstRun = 0; 
     for(std::vector<edm::RunNumber_t>::const_iterator iRun = range.begin(); 
         iRun != range.end(); ++iRun)  {
-      globalRunRange_.insert((*iRun));
+      localRunRange.insert((*iRun));
       if((*iRun) > firstRun) {
         firstRun = (*iRun);
       } else {
@@ -459,7 +458,23 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
       << " No pixel module was selected for the LA measurement.";
   }
 
-
+  //copy local set into the global vector of run boundaries
+  for(std::set<edm::RunNumber_t>::const_iterator itRun = localRunRange.begin();
+      itRun != localRunRange.end(); itRun++) {
+    globalRunRange_.push_back((*itRun));
+  }
+  
+  edm::RunNumber_t firstRun = 0; 
+  for(std::vector<edm::RunNumber_t>::const_iterator iRun = globalRunRange_.begin(); 
+      iRun != globalRunRange_.end(); ++iRun)  {
+    if((*iRun) > firstRun) {
+      firstRun = (*iRun);
+    } else {
+      throw cms::Exception("BadConfig")
+        << "@SUB=SiPixelLorentzAngleCalibration::beginOfJob:"
+        << " Global run range vector not sorted.";
+    }
+  }
 }
 
 
@@ -781,19 +796,14 @@ edm::RunNumber_t SiPixelLorentzAngleCalibration::firstRunOfIOV(unsigned int iovN
   // else return 0;
 
   
-
-  edm::RunNumber_t r = 0;
-
-  for(std::set<edm::RunNumber_t>::const_iterator itRun = globalRunRange_.begin();
-      itRun != globalRunRange_.end(); itRun++) {
-
-    if(std::distance(globalRunRange_.begin(), itRun ) == iovNum) {
-      r = (*itRun);
-          
-    }
-  }
-      
-  return r;
+  // edm::RunNumber_t r = 0;
+  
+  // if (iovNum < this->numIovs()) {
+  //   r = globalRunRange_.at(iovNum);
+  // } else {
+  //   r = 0;
+  // }
+  return iovNum < this->numIovs() ? globalRunRange_.at(iovNum) : 0;
 
 }
 
