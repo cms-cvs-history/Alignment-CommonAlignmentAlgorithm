@@ -6,8 +6,8 @@
  *
  *  \author Gero Flucke
  *  \date August 2012
- *  $Revision: 1.1 $
- *  $Date: 2012/08/10 09:07:20 $
+ *  $Revision: 1.2 $
+ *  $Date: 2012/08/28 19:19:38 $
  *  (last update by $Author: flucke $)
  *
  *  Base class for the calibrations that are integrated
@@ -88,9 +88,9 @@ public:
 
   /// Call at beginning of job:
   /// default implementation is dummy, to be overwritten in derived class if useful.
-  virtual void beginOfJob(const AlignableTracker *tracker,
-			  const AlignableMuon *muon,
-			  const AlignableExtras *extras) {};
+  virtual void beginOfJob(AlignableTracker *tracker,
+			  AlignableMuon *muon,
+			  AlignableExtras *extras) {};
 
   /// Called at beginning of a loop of the AlignmentProducer,
   /// to be used for iterative algorithms, default does nothing.
