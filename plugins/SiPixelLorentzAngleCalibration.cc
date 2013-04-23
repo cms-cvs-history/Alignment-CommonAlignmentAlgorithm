@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.7 $
-///  $Date: 2013/04/23 09:56:40 $
+///  $Revision: 1.4.2.8 $
+///  $Date: 2013/04/23 09:59:53 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -418,12 +418,13 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   
  
   //test that only pixel modules have been selected
+ 
   for(unsigned int iAlignableGroup = 0; iAlignableGroup < firstId_.size(); iAlignableGroup++) {
     const std::list<Alignable*> &alis = LAassignment_.at(iAlignableGroup).first;
-    
+    int nselectedmodules = 0;
     for(std::list<Alignable*>::const_iterator iAli = alis.begin();
         iAli != alis.end(); iAli++) {
-      
+      nselectedmodules++;
       bool pixelmodule = true;
       if((*iAli)->alignableObjectId() == align::AlignableDetUnit || (*iAli)->alignableObjectId() == align::AlignableDet) {
         const PXBDetId id((*iAli)->id());
@@ -439,8 +440,15 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
 
       if(!pixelmodule) {
         throw cms::Exception("BadConfig") 
-          << " Non-pixel modules have been selected for the LA determination in the pixel detector";
+          << " Non-pixel modules have been selected in PSet number " << iAlignableGroup << " for the LA determination in the pixel detector";
       }
+    }
+
+    
+    //test whether at all a pixel module was selected in this group
+    if(nselectedmodules == 0) {
+      throw cms::Exception("BadConfig") 
+        << " No pixel module was selected in PSet number " <<iAlignableGroup << " for the LA measurement.";
     }
   }
   
@@ -450,7 +458,6 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
     throw cms::Exception("BadConfig") 
       << " No pixel module was selected for the LA measurement.";
   }
-  
 
 
 }
