@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.6 $
-///  $Date: 2013/04/23 09:53:08 $
+///  $Revision: 1.4.2.7 $
+///  $Date: 2013/04/23 09:56:40 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -412,10 +412,6 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
     }
   }
 
-  if(nparameters == 0) {
-    throw cms::Exception("BadConfig") 
-      << " No pixel module was selected for the LA measurement.";
-  }
 
   parameters_.resize(nparameters, 0.);
   paramUncertainties_.resize(nparameters, 0.);
@@ -449,6 +445,14 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   }
   
  
+  //test whether at all a pixel module was selected
+  if(nparameters == 0) {
+    throw cms::Exception("BadConfig") 
+      << " No pixel module was selected for the LA measurement.";
+  }
+  
+
+
 }
 
 
