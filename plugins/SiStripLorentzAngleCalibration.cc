@@ -7,11 +7,12 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.3 $
-///  $Date: 2013/04/17 09:40:55 $
+///  $Revision: 1.6.2.4 $
+///  $Date: 2013/04/22 08:26:47 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
+#include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
 #include "Alignment/CommonAlignmentAlgorithm/plugins/SiStripReadoutModeEnums.h"
 
 #include "CondCore/DBOutputService/interface/PoolDBOutputService.h"
@@ -40,6 +41,7 @@
 #include "TString.h"
 
 // #include <iostream>
+#include <boost/assign/list_of.hpp>
 #include <vector>
 #include <map>
 #include <sstream>
@@ -91,9 +93,10 @@ public:
   virtual double getParameterError(unsigned int index) const;
 
   // /// Call at beginning of job:
-  // virtual void beginOfJob(const AlignableTracker *tracker,
-  // 			  const AlignableMuon *muon,
-  // 			  const AlignableExtras *extras);
+  virtual void beginOfJob(AlignableTracker *tracker,
+  			  AlignableMuon *muon,
+  			  AlignableExtras *extras);
+  
 
   /// Called at end of a the job of the AlignmentProducer.
   /// Write out determined parameters.
@@ -113,13 +116,6 @@ private:
   /// Determined parameter value for this detId (detId not treated => 0.)
   /// and the given run.
   double getParameterForDetId(unsigned int detId, edm::RunNumber_t run) const;
-  /// Index of parameter for given detId (detId not treated => < 0)
-  /// and the given run.
-  int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
-  /// Total number of IOVs.
-  unsigned int numIovs() const;
-  /// First run of iov (0 if iovNum not treated).
-  edm::RunNumber_t firstRunOfIOV(unsigned int iovNum) const;
 
   void writeTree(const SiStripLorentzAngle *lorentzAngle,
 		 const std::map<unsigned int,float> &errors, const char *treeName) const;
@@ -139,6 +135,8 @@ private:
 
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
+
+  TkModuleGroupSelector LAmoduleselector;
 };
 
 //======================================================================
@@ -153,8 +151,17 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
     outFileName_(cfg.getParameter<std::string>("treeFile")),
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
     //    alignableTracker_(0),
-    siStripLorentzAngleInput_(0)
+    siStripLorentzAngleInput_(0),
+    LAmoduleselector(
+                     cfg.getParameter<edm::VParameterSet>("LorentzAngleGranularity")
+                     )
 {
+  //specify the sub-detectors for which the LA is determined
+  const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
+  LAmoduleselector.SetSubDets(sdets);
+
+
+
   // SiStripLatency::singleReadOutMode() returns
   // 1: all in peak, 0: all in deco, -1: mixed state
   // (in principle one could treat even mixed state APV by APV...)
@@ -168,9 +175,9 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
 	  << readoutModeName_ << "', should be 'peak' or 'deconvolution' .\n";
   }
 
-  // FIXME: Which granularity, leading to how many parameters?
-  parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
-  paramUncertainties_.resize(2, 0.); // dito for errors
+  // // FIXME: Which granularity, leading to how many parameters?
+  // parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
+  // paramUncertainties_.resize(2, 0.); // dito for errors
 
   edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration" << "Created with name "
                             << this->name() << " for readout mode '" << readoutModeName_
@@ -217,8 +224,8 @@ SiStripLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
   if (mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
       
-      const int index = this->getParameterIndexFromDetId(hit.det()->geographicalId(),
-							 eventInfo.eventId_.run());
+      const int index = LAmoduleselector.getParameterIndexFromDetId(hit.det()->geographicalId(),
+                                                                    eventInfo.eventId_.run());
       if (index >= 0) { // otherwise not treated
         edm::ESHandle<MagneticField> magneticField;
         setup.get<IdealMagneticFieldRecord>().get(magneticField);
@@ -254,7 +261,7 @@ bool SiStripLorentzAngleCalibration::setParameter(unsigned int index, double val
   if (index >= parameters_.size()) {
     return false;
   } else {
-    parameters_[index] = value;
+    parameters_.at(index) = value;
     return true;
   }
 }
@@ -265,7 +272,7 @@ bool SiStripLorentzAngleCalibration::setParameterError(unsigned int index, doubl
   if (index >= paramUncertainties_.size()) {
     return false;
   } else {
-    paramUncertainties_[index] = error;
+    paramUncertainties_.at(index) = error;
     return true;
   }
 }
@@ -278,7 +285,7 @@ double SiStripLorentzAngleCalibration::getParameter(unsigned int index) const
   //   } else {
   //     return parameters_[index];
   //   }
-  return (index >= parameters_.size() ? 0. : parameters_[index]);
+  return (index >= parameters_.size() ? 0. : parameters_.at(index));
 }
 
 //======================================================================
@@ -289,16 +296,19 @@ double SiStripLorentzAngleCalibration::getParameterError(unsigned int index) con
   //   } else {
   //     return paramUncertainties_[index];
   //   }
-  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
+  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_.at(index));
 }
 
-// //======================================================================
-// void SiStripLorentzAngleCalibration::beginOfJob(const AlignableTracker *tracker,
-//                                                 const AlignableMuon */*muon*/,
-//                                                 const AlignableExtras */*extras*/)
-// {
-//   alignableTracker_ = tracker;
-// }
+//======================================================================
+void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
+                                                AlignableMuon *aliMuon,
+                                                AlignableExtras *aliExtras)
+{
+  LAmoduleselector.CreateModuleGroups(aliTracker,aliMuon,aliExtras);
+ 
+  parameters_.resize(LAmoduleselector.GetNumberOfParameters(), 0.);
+  paramUncertainties_.resize(LAmoduleselector.GetNumberOfParameters(), 0.);
+}
 
 
 //======================================================================
@@ -331,8 +341,8 @@ void SiStripLorentzAngleCalibration::endOfJob()
     + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
                std::bind2nd(std::not_equal_to<double>(), 0.));
 
-  for (unsigned int iIOV = 0; iIOV < this->numIovs(); ++iIOV) {
-    cond::Time_t firstRunOfIOV = this->firstRunOfIOV(iIOV);
+  for (unsigned int iIOV = 0; iIOV < LAmoduleselector.numIovs(); ++iIOV) {
+    cond::Time_t firstRunOfIOV = LAmoduleselector.firstRunOfIOV(iIOV);
     SiStripLorentzAngle *output = new SiStripLorentzAngle;
     // Loop on map of values from input and add (possible) parameter results
     for (auto iterIdValue = input->getLorentzAngles().begin();
@@ -341,7 +351,7 @@ void SiStripLorentzAngleCalibration::endOfJob()
       const unsigned int detId = iterIdValue->first; // key of map is DetId
       const float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
       output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = this->getParameterIndexFromDetId(detId, firstRunOfIOV);
+      int parameterIndex = LAmoduleselector.getParameterIndexFromDetId(detId, firstRunOfIOV);
       errors[detId] = this->getParameterError(parameterIndex);
     }
 
@@ -456,44 +466,10 @@ const SiStripLorentzAngle* SiStripLorentzAngleCalibration::getLorentzAnglesInput
 double SiStripLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
-  const int index = this->getParameterIndexFromDetId(detId, run);
+  const int index = LAmoduleselector.getParameterIndexFromDetId(detId, run);
 
-  return (index < 0 ? 0. : parameters_[index]);
+  return (index < 0 ? 0. : parameters_.at(index));
 }
-
-//======================================================================
-int SiStripLorentzAngleCalibration::getParameterIndexFromDetId(unsigned int detId,
-							       edm::RunNumber_t run) const
-{
-  // Return the index of the parameter that is used for this DetId.
-  // If this DetId is not treated, return values < 0.
-  
-  // FIXME: Extend to configurable granularity? 
-  //        Including treatment of run dependence?
-  const SiStripDetId id(detId);
-  if (id.det() == DetId::Tracker) {
-    if      (id.subDetector() == SiStripDetId::TIB) return 0;
-    else if (id.subDetector() == SiStripDetId::TOB) return 1;
-  }
-
-  return -1;
-}
-
-//======================================================================
-unsigned int SiStripLorentzAngleCalibration::numIovs() const
-{
-  // FIXME: Needed to include treatment of run dependence!
-  return 1; 
-}
-
-//======================================================================
-edm::RunNumber_t SiStripLorentzAngleCalibration::firstRunOfIOV(unsigned int iovNum) const
-{
-  // FIXME: Needed to include treatment of run dependence!
-  if (iovNum < this->numIovs()) return 1;
-  else return 0;
-}
-
 
 //======================================================================
 void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorentzAngle,
