@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1 $
- *  $Date: 2012/08/10 09:07:21 $
+ *  $Revision: 1.1.2.1 $
+ *  $Date: 2013/05/10 12:54:27 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -12,7 +12,7 @@
 
 //============================================================================
 TkModuleGroupSelector::TkModuleGroupSelector(const edm::VParameterSet &cfg) : myGranularityConfig_(cfg),
-                                                                              nparameters(0)
+                                                                              nparameters_(0)
 {
   //FIXME: take list of subdetids from which modules are taken
 }
@@ -20,7 +20,7 @@ TkModuleGroupSelector::TkModuleGroupSelector(const edm::VParameterSet &cfg) : my
 //============================================================================
 void TkModuleGroupSelector::SetSubDets(std::vector<int> sdets)
 {
-  subdetids = sdets;
+  subdetids_ = sdets;
 }
 
 //============================================================================
@@ -29,7 +29,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
                                                AlignableExtras *aliExtras)
 {
   std::set<edm::RunNumber_t> localRunRange;
-  nparameters = 0;
+  nparameters_ = 0;
   unsigned int Id = 0;
   //loop over all LA groups
   for(edm::VParameterSet::const_iterator pset = myGranularityConfig_.begin();
@@ -63,7 +63,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
           assignment_.push_back(std::make_pair(std::list<Alignable*>(1,(*it)), range));
           firstId_.push_back(Id);
           Id += range.size();
-          nparameters += range.size();
+          nparameters_ += range.size();
         } else {
           selected_alis.push_back((*it)); //throw out HLS?
         }
@@ -97,7 +97,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
                 assignment_.push_back(std::make_pair(std::list<Alignable*>(1,(*iD)), range));
                 firstId_.push_back(Id);
                 Id += range.size();
-                nparameters += range.size();
+                nparameters_ += range.size();
               }
             } else {
               selected_alis.push_back((*iD));
@@ -120,7 +120,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
       assignment_.push_back(std::make_pair(selected_alis, range));
       firstId_.push_back(Id);
       Id += range.size();
-      nparameters += range.size();
+      nparameters_ += range.size();
     }
     
    
@@ -149,8 +149,8 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
         const DetId id((*iAli)->id());
         if (id.det() != DetId::Tracker) selectedmodule = false;
         bool sel = false;
-        for(std::vector<int>::const_iterator itSubDets = subdetids.begin();
-            itSubDets != subdetids.end();
+        for(std::vector<int>::const_iterator itSubDets = subdetids_.begin();
+            itSubDets != subdetids_.end();
             itSubDets++) {
           if (id.det() == DetId::Tracker && id.subdetId() == (*itSubDets)) {
             sel = true;
@@ -180,7 +180,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
   
  
   //test whether at all a module was selected
-  if(nparameters == 0) {
+  if(nparameters_ == 0) {
     throw cms::Exception("BadConfig") 
       << "@SUB=TkModuleGroupSelector:CreateModuleGroups:"
       << " No module was selected in the module group selector.";
@@ -209,7 +209,7 @@ void TkModuleGroupSelector::CreateModuleGroups(AlignableTracker *aliTracker,
 //============================================================================
 unsigned int TkModuleGroupSelector::GetNumberOfParameters() const
 {
-  return nparameters;
+  return nparameters_;
 }
 
 //============================================================================
@@ -236,8 +236,8 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
   int index = -1;
 
   bool sel = false;
-  for(std::vector<int>::const_iterator itSubDets = subdetids.begin();
-      itSubDets != subdetids.end();
+  for(std::vector<int>::const_iterator itSubDets = subdetids_.begin();
+      itSubDets != subdetids_.end();
       itSubDets++) {
     if (temp_id.det() == DetId::Tracker && temp_id.subdetId() == (*itSubDets)) {
       sel = true;

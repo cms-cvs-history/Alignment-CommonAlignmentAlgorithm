@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.10 $
-///  $Date: 2013/04/23 12:04:02 $
+///  $Revision: 1.4.2.11 $
+///  $Date: 2013/05/10 12:54:33 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -134,7 +134,7 @@ private:
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
   
-  TkModuleGroupSelector LAmoduleselector;
+  TkModuleGroupSelector moduleGroupSelector_;
  
 };
 
@@ -150,13 +150,13 @@ SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::Parame
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
     //    alignableTracker_(0),
     siPixelLorentzAngleInput_(0),
-    LAmoduleselector(
-                     cfg.getParameter<edm::VParameterSet>("LorentzAngleGranularity")
-                     )
+    moduleGroupSelector_(
+                         cfg.getParameter<edm::VParameterSet>("LorentzAngleGranularity")
+                         )
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
-  LAmoduleselector.SetSubDets(sdets);
+  moduleGroupSelector_.SetSubDets(sdets);
   
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
                             << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
@@ -198,8 +198,8 @@ SiPixelLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
 
   if (hit.det()) { // otherwise 'constraint hit' or whatever
     
-    const int index = LAmoduleselector.getParameterIndexFromDetId(hit.det()->geographicalId(),
-                                                                  eventInfo.eventId_.run());
+    const int index = moduleGroupSelector_.getParameterIndexFromDetId(hit.det()->geographicalId(),
+                                                                      eventInfo.eventId_.run());
     if (index >= 0) { // otherwise not treated
       edm::ESHandle<MagneticField> magneticField;
       setup.get<IdealMagneticFieldRecord>().get(magneticField);
@@ -210,14 +210,14 @@ SiPixelLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
       // '-' since we have derivative of the residual r = trk -hit
       const double xDerivative = bFieldLocal.y() * dZ * -0.5; // parameter is mobility!
 
-//      const PXBDetId bdet(hit.det()->geographicalId());
-//      if(bdet.subdetId()==PixelSubdetector::PixelBarrel){
-//	printf("TPB: layer: %d ring: %d B: %.5f\n",bdet.layer(),bdet.module(),bFieldLocal.y());
-//      }
-//      const PXFDetId fdet(hit.det()->geographicalId());
-//      if(fdet.subdetId()==PixelSubdetector::PixelEndcap){
-//	printf("TPF: side: %d B: %.5f\n",fdet.side(),bFieldLocal.y());
-//      }
+      //      const PXBDetId bdet(hit.det()->geographicalId());
+      //      if(bdet.subdetId()==PixelSubdetector::PixelBarrel){
+      //	printf("TPB: layer: %d ring: %d B: %.5f\n",bdet.layer(),bdet.module(),bFieldLocal.y());
+      //      }
+      //      const PXFDetId fdet(hit.det()->geographicalId());
+      //      if(fdet.subdetId()==PixelSubdetector::PixelEndcap){
+      //	printf("TPF: side: %d B: %.5f\n",fdet.side(),bFieldLocal.y());
+      //      }
 
       if (xDerivative) { // If field is zero, this is zero: do not return it
 	const Values derivs(xDerivative, 0.); // yDerivative = 0.
@@ -274,10 +274,10 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
-  LAmoduleselector.CreateModuleGroups(aliTracker,aliMuon,aliExtras);
+  moduleGroupSelector_.CreateModuleGroups(aliTracker,aliMuon,aliExtras);
  
-  parameters_.resize(LAmoduleselector.GetNumberOfParameters(), 0.);
-  paramUncertainties_.resize(LAmoduleselector.GetNumberOfParameters(), 0.);
+  parameters_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
 }
 
 
@@ -310,9 +310,9 @@ void SiPixelLorentzAngleCalibration::endOfJob()
     + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
                std::bind2nd(std::not_equal_to<double>(), 0.));
 
-  for (unsigned int iIOV = 0; iIOV < LAmoduleselector.numIovs(); ++iIOV) {
-//  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
-    cond::Time_t firstRunOfIOV = LAmoduleselector.firstRunOfIOV(iIOV);
+  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_.numIovs(); ++iIOV) {
+    //  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
+    cond::Time_t firstRunOfIOV = moduleGroupSelector_.firstRunOfIOV(iIOV);
     SiPixelLorentzAngle *output = new SiPixelLorentzAngle;
     // Loop on map of values from input and add (possible) parameter results
     for (auto iterIdValue = input->getLorentzAngles().begin();
@@ -321,9 +321,9 @@ void SiPixelLorentzAngleCalibration::endOfJob()
       const unsigned int detId = iterIdValue->first; // key of map is DetId
       // Nasty: putLorentzAngle(..) takes float by reference - not even const reference!
       float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
-//      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
+      //      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
       output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = LAmoduleselector.getParameterIndexFromDetId(detId, firstRunOfIOV);
+      int parameterIndex = moduleGroupSelector_.getParameterIndexFromDetId(detId, firstRunOfIOV);
       errors[detId]= this->getParameterError(parameterIndex);
     }
 
@@ -420,7 +420,7 @@ const SiPixelLorentzAngle* SiPixelLorentzAngleCalibration::getLorentzAnglesInput
 double SiPixelLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
-  const int index = LAmoduleselector.getParameterIndexFromDetId(detId, run);
+  const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
   return (index < 0 ? 0. : parameters_.at(index));
 }
 
@@ -507,4 +507,4 @@ SiPixelLorentzAngleCalibration::createFromTree(const char *fileName, const char 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationPluginFactory.h"
 
 DEFINE_EDM_PLUGIN(IntegratedCalibrationPluginFactory,
-		   SiPixelLorentzAngleCalibration, "SiPixelLorentzAngleCalibration");
+                  SiPixelLorentzAngleCalibration, "SiPixelLorentzAngleCalibration");

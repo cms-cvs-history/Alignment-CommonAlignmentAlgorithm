@@ -9,9 +9,9 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : November 2012
-///  $Revision: 1.1.2.3 $
-///  $Date: 2013/04/22 08:26:47 $
-///  (last update by $Author: flucke $)
+///  $Revision: 1.1.2.4 $
+///  $Date: 2013/05/10 13:52:47 $
+///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
@@ -135,7 +135,7 @@ private:
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
 
-  TkModuleGroupSelector BPmoduleselector;
+  TkModuleGroupSelector moduleGroupSelector_;
 };
 
 //======================================================================
@@ -151,13 +151,13 @@ SiStripBackplaneCalibration::SiStripBackplaneCalibration(const edm::ParameterSet
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
     //    alignableTracker_(0),
     siStripBackPlaneCorrInput_(0),
-    BPmoduleselector(
+    moduleGroupSelector_(
                      cfg.getParameter<edm::VParameterSet>("BackplaneGranularity")
                      )
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
-  BPmoduleselector.SetSubDets(sdets);
+  moduleGroupSelector_.SetSubDets(sdets);
   
   // SiStripLatency::singleReadOutMode() returns
   // 1: all in peak, 0: all in deco, -1: mixed state
@@ -231,7 +231,7 @@ SiStripBackplaneCalibration::derivatives(std::vector<ValuesIndexPair> &outDerivI
   if(mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
       
-      const int index = BPmoduleselector.getParameterIndexFromDetId(hit.det()->geographicalId(),
+      const int index = moduleGroupSelector_.getParameterIndexFromDetId(hit.det()->geographicalId(),
                                                                     eventInfo.eventId_.run());
       if (index >= 0) { // otherwise not treated
         edm::ESHandle<MagneticField> magneticField;
@@ -354,8 +354,8 @@ void SiStripBackplaneCalibration::endOfJob()
     + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
                std::bind2nd(std::not_equal_to<double>(), 0.));
 
-  for (unsigned int iIOV = 0; iIOV < BPmoduleselector.numIovs(); ++iIOV) {
-    cond::Time_t firstRunOfIOV = BPmoduleselector.firstRunOfIOV(iIOV);
+  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_.numIovs(); ++iIOV) {
+    cond::Time_t firstRunOfIOV = moduleGroupSelector_.firstRunOfIOV(iIOV);
     SiStripBackPlaneCorrection *output = new SiStripBackPlaneCorrection;
     // Loop on map of values from input and add (possible) parameter results
     for (auto iterIdValue = input->getBackPlaneCorrections().begin();
@@ -364,7 +364,7 @@ void SiStripBackplaneCalibration::endOfJob()
       const unsigned int detId = iterIdValue->first; // key of map is DetId
       const float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
       output->putBackPlaneCorrection(detId, value); // put result in output
-      int parameterIndex = BPmoduleselector.getParameterIndexFromDetId(detId, firstRunOfIOV);
+      int parameterIndex = moduleGroupSelector_.getParameterIndexFromDetId(detId, firstRunOfIOV);
       errors[detId] = this->getParameterError(parameterIndex);
     }
 
@@ -463,7 +463,7 @@ const SiStripBackPlaneCorrection* SiStripBackplaneCalibration::getBackPlaneCorre
 double SiStripBackplaneCalibration::getParameterForDetId(unsigned int detId,
 							 edm::RunNumber_t run) const
 {
-  const int index = BPmoduleselector.getParameterIndexFromDetId(detId, run);
+  const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
 
   return (index < 0 ? 0. : parameters_.at(index));
 }

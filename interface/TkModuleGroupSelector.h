@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.2.2.1 $
- *  $Date: 2013/04/23 08:13:27 $
+ *  $Revision: 1.1.2.1 $
+ *  $Date: 2013/05/10 12:54:22 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -86,8 +86,8 @@ public:
   std::vector<edm::RunNumber_t> globalRunRange_;
   std::vector<unsigned int> firstId_;//1:1 mapping with assignment_
   std::vector<std::pair<std::list<Alignable*>, std::vector<edm::RunNumber_t> > > assignment_;
-  unsigned int nparameters;
-  std::vector<int> subdetids;
+  unsigned int nparameters_;
+  std::vector<int> subdetids_;
 };
 
 #endif
