@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.11 $
-///  $Date: 2013/05/10 12:54:33 $
+///  $Revision: 1.4.2.12 $
+///  $Date: 2013/05/14 08:01:04 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -156,17 +156,8 @@ SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::Parame
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
-  moduleGroupSelector_.SetSubDets(sdets);
-  
-  edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
-                            << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
-                            << "\nsaveToDB = " << saveToDB_
-                            << "\n outFileName = " << outFileName_
-                            << "\n N(merge files) = " << mergeFileNames_.size();
-  if (mergeFileNames_.size()) {
-    edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration"
-                              << "First file to merge: " << mergeFileNames_[0];
-  }
+  moduleGroupSelector_.setSubDets(sdets);
+ 
 }
   
 //======================================================================
@@ -238,7 +229,7 @@ bool SiPixelLorentzAngleCalibration::setParameter(unsigned int index, double val
   if (index >= parameters_.size()) {
     return false;
   } else {
-    parameters_.at(index) = value;
+    parameters_[index] = value;
     return true;
   }
 }
@@ -249,7 +240,7 @@ bool SiPixelLorentzAngleCalibration::setParameterError(unsigned int index, doubl
   if (index >= paramUncertainties_.size()) {
     return false;
   } else {
-    paramUncertainties_.at(index) = error;
+    paramUncertainties_[index] = error;
     return true;
   }
 }
@@ -257,13 +248,13 @@ bool SiPixelLorentzAngleCalibration::setParameterError(unsigned int index, doubl
 //======================================================================
 double SiPixelLorentzAngleCalibration::getParameter(unsigned int index) const
 {
-  return (index >= parameters_.size() ? 0. : parameters_.at(index));
+  return (index >= parameters_.size() ? 0. : parameters_[index]);
 }
 
 //======================================================================
 double SiPixelLorentzAngleCalibration::getParameterError(unsigned int index) const
 {
-  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_.at(index));
+  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
 }
 
 
@@ -274,10 +265,22 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
-  moduleGroupSelector_.CreateModuleGroups(aliTracker,aliMuon,aliExtras);
+  moduleGroupSelector_.createModuleGroups(aliTracker,aliMuon,aliExtras);
  
-  parameters_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
-  paramUncertainties_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
+  parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+
+ 
+  edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
+                            << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
+                            << "\nsaveToDB = " << saveToDB_
+                            << "\n outFileName = " << outFileName_
+                            << "\n N(merge files) = " << mergeFileNames_.size()
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+  if (mergeFileNames_.size()) {
+    edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration"
+                              << "First file to merge: " << mergeFileNames_[0];
+  }
 }
 
 
@@ -421,7 +424,7 @@ double SiPixelLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
   const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
-  return (index < 0 ? 0. : parameters_.at(index));
+  return (index < 0 ? 0. : parameters_[index]);
 }
 
 //======================================================================

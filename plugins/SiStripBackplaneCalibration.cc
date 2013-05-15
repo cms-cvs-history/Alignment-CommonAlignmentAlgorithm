@@ -9,8 +9,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : November 2012
-///  $Revision: 1.1.2.4 $
-///  $Date: 2013/05/10 13:52:47 $
+///  $Revision: 1.1.2.5 $
+///  $Date: 2013/05/14 08:01:04 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -95,9 +95,9 @@ public:
   virtual double getParameterError(unsigned int index) const;
 
   // /// Call at beginning of job:
-  // virtual void beginOfJob(const AlignableTracker *tracker,
-  // 			  const AlignableMuon *muon,
-  // 			  const AlignableExtras *extras);
+  virtual void beginOfJob(AlignableTracker *tracker,
+  			  AlignableMuon *muon,
+  			  AlignableExtras *extras);
 
   /// Called at end of a the job of the AlignmentProducer.
   /// Write out determined parameters.
@@ -157,7 +157,7 @@ SiStripBackplaneCalibration::SiStripBackplaneCalibration(const edm::ParameterSet
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
-  moduleGroupSelector_.SetSubDets(sdets);
+  moduleGroupSelector_.setSubDets(sdets);
   
   // SiStripLatency::singleReadOutMode() returns
   // 1: all in peak, 0: all in deco, -1: mixed state
@@ -176,16 +176,7 @@ SiStripBackplaneCalibration::SiStripBackplaneCalibration(const edm::ParameterSet
   parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
   paramUncertainties_.resize(2, 0.); // dito for errors
 
-  edm::LogInfo("Alignment") << "@SUB=SiStripBackplaneCalibration" << "Created with name "
-                            << this->name() << " for readout mode '" << readoutModeName_
-			    << "',\n" << this->numParameters() << " parameters to be determined."
-                            << "\nsaveToDB = " << saveToDB_
-                            << "\n outFileName = " << outFileName_
-                            << "\n N(merge files) = " << mergeFileNames_.size();
-  if (mergeFileNames_.size()) {
-    edm::LogInfo("Alignment") << "@SUB=SiStripBackplaneCalibration"
-                              << "First file to merge: " << mergeFileNames_[0];
-  }
+ 
 }
   
 //======================================================================
@@ -277,7 +268,7 @@ bool SiStripBackplaneCalibration::setParameter(unsigned int index, double value)
   if (index >= parameters_.size()) {
     return false;
   } else {
-    parameters_.at(index) = value;
+    parameters_[index] = value;
     return true;
   }
 }
@@ -288,7 +279,7 @@ bool SiStripBackplaneCalibration::setParameterError(unsigned int index, double e
   if (index >= paramUncertainties_.size()) {
     return false;
   } else {
-    paramUncertainties_.at(index) = error;
+    paramUncertainties_[index] = error;
     return true;
   }
 }
@@ -299,9 +290,9 @@ double SiStripBackplaneCalibration::getParameter(unsigned int index) const
   //   if (index >= parameters_.size()) {
   //     return 0.;
   //   } else {
-  //     return parameters_.at(index);
+  //     return parameters_[index];
   //   }
-  return (index >= parameters_.size() ? 0. : parameters_.at(index));
+  return (index >= parameters_.size() ? 0. : parameters_[index]);
 }
 
 //======================================================================
@@ -312,16 +303,32 @@ double SiStripBackplaneCalibration::getParameterError(unsigned int index) const
   //   } else {
   //     return paramUncertainties_[index];
   //   }
-  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_.at(index));
+  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
 }
 
-// //======================================================================
-// void SiStripBackplaneCalibration::beginOfJob(const AlignableTracker *tracker,
-//                                                 const AlignableMuon */*muon*/,
-//                                                 const AlignableExtras */*extras*/)
-// {
-//   alignableTracker_ = tracker;
-// }
+//======================================================================
+void SiStripBackplaneCalibration::beginOfJob(AlignableTracker *aliTracker,
+                                             AlignableMuon *aliMuon,
+                                             AlignableExtras *aliExtras)
+{
+  moduleGroupSelector_.createModuleGroups(aliTracker,aliMuon,aliExtras);
+ 
+  parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+
+  edm::LogInfo("Alignment") << "@SUB=SiStripBackplaneCalibration" << "Created with name "
+                            << this->name() << " for readout mode '" << readoutModeName_
+			    << "',\n" << this->numParameters() << " parameters to be determined."
+                            << "\nsaveToDB = " << saveToDB_
+                            << "\n outFileName = " << outFileName_
+                            << "\n N(merge files) = " << mergeFileNames_.size()
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+  if (mergeFileNames_.size()) {
+    edm::LogInfo("Alignment") << "@SUB=SiStripBackplaneCalibration"
+                              << "First file to merge: " << mergeFileNames_[0];
+  }
+  
+}
 
 
 //======================================================================
@@ -465,7 +472,7 @@ double SiStripBackplaneCalibration::getParameterForDetId(unsigned int detId,
 {
   const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
 
-  return (index < 0 ? 0. : parameters_.at(index));
+  return (index < 0 ? 0. : parameters_[index]);
 }
 
 //======================================================================

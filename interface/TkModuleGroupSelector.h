@@ -10,37 +10,18 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.1 $
- *  $Date: 2013/05/10 12:54:22 $
+ *  $Revision: 1.1.2.2 $
+ *  $Date: 2013/05/14 08:01:04 $
  *  (last update by $Author: jbehr $)
  *
  */
 
-
-#include "Alignment/CommonAlignmentAlgorithm/interface/AlignmentAlgorithmBase.h"
-
-#include "DataFormats/DetId/interface/DetId.h"
-#include "DataFormats/SiPixelDetId/interface/PXBDetId.h"
-#include "DataFormats/SiPixelDetId/interface/PXFDetId.h"
-
-#include "FWCore/Framework/interface/ESHandle.h"
-#include "FWCore/Framework/interface/ESWatcher.h"
-#include "FWCore/MessageLogger/interface/MessageLogger.h"
-#include "Alignment/CommonAlignment/interface/Alignable.h"
-
-#include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "Alignment/CommonAlignmentAlgorithm/interface/AlignmentParameterSelector.h"
-
-#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 
 #include <vector>
-#include <utility>
-#include <string>
 #include <map>
-#include <sstream>
-#include <set>
-#include <functional>
+
+
 
 class AlignableTracker;
 class AlignableMuon;
@@ -56,20 +37,20 @@ public:
   explicit TkModuleGroupSelector(const edm::VParameterSet &cfg);
   
   /// Destructor
-  ~TkModuleGroupSelector() {};
+  virtual ~TkModuleGroupSelector() {};
 
   // Reads and parses the configurations and
   // constructs the run-dependent module groups.
-  void CreateModuleGroups(AlignableTracker *aliTracker,
+  void createModuleGroups(AlignableTracker *aliTracker,
                           AlignableMuon *aliMuon,
                           AlignableExtras *aliExtras);
   
   // Specify the sub-detectors for which modules are grouped together.
   // Modules belonging to other sub-detectors are ignored.
-  void SetSubDets(std::vector<int> sdets); //FIXME: move somehow to constructor?
+  void setSubDets(const std::vector<int> &sdets); //FIXME: move somehow to constructor?
 
   // Returns the number of parameters.
-  unsigned int GetNumberOfParameters() const;
+  unsigned int getNumberOfParameters() const;
 
   /// Total number of IOVs.
   unsigned int numIovs() const;
@@ -82,11 +63,30 @@ public:
   int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
   
  private:
+  // Fill the container which is a map between the det id and the id of the group
+  // to which the module belongs.
+  void fillDetIdMap(const unsigned int detid, const unsigned int groupid);
+
+  // The configuration
   const edm::VParameterSet myGranularityConfig_;
+
+  // Array with run boundaries which is a combination
+  // of all defined run ranges of all specified module groups.
   std::vector<edm::RunNumber_t> globalRunRange_;
-  std::vector<unsigned int> firstId_;//1:1 mapping with assignment_
-  std::vector<std::pair<std::list<Alignable*>, std::vector<edm::RunNumber_t> > > assignment_;
+
+  // For a given module group the id of the first IOV.
+  std::vector<unsigned int> firstId_;
+
+  // Run range per module group
+  std::vector<std::vector<edm::RunNumber_t> > runRange_;
+
+  // Mapping between module id and module group id.
+  std::map<unsigned int, unsigned int> mapDetIdGroupId_;
+
+  // Total number of parameters.
   unsigned int nparameters_;
+
+  // The ids of the subdetectors for which parameters are determined.
   std::vector<int> subdetids_;
 };
 

@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.5 $
-///  $Date: 2013/05/10 13:52:47 $
+///  $Revision: 1.6.2.6 $
+///  $Date: 2013/05/14 08:01:04 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -158,7 +158,7 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
-  moduleGroupSelector_.SetSubDets(sdets);
+  moduleGroupSelector_.setSubDets(sdets);
 
 
 
@@ -179,16 +179,7 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
   // parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
   // paramUncertainties_.resize(2, 0.); // dito for errors
 
-  edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration" << "Created with name "
-                            << this->name() << " for readout mode '" << readoutModeName_
-			    << "',\n" << this->numParameters() << " parameters to be determined."
-                            << "\nsaveToDB = " << saveToDB_
-                            << "\n outFileName = " << outFileName_
-                            << "\n N(merge files) = " << mergeFileNames_.size();
-  if (mergeFileNames_.size()) {
-    edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration"
-                              << "First file to merge: " << mergeFileNames_[0];
-  }
+
 }
   
 //======================================================================
@@ -261,7 +252,7 @@ bool SiStripLorentzAngleCalibration::setParameter(unsigned int index, double val
   if (index >= parameters_.size()) {
     return false;
   } else {
-    parameters_.at(index) = value;
+    parameters_[index] = value;
     return true;
   }
 }
@@ -272,7 +263,7 @@ bool SiStripLorentzAngleCalibration::setParameterError(unsigned int index, doubl
   if (index >= paramUncertainties_.size()) {
     return false;
   } else {
-    paramUncertainties_.at(index) = error;
+    paramUncertainties_[index] = error;
     return true;
   }
 }
@@ -285,7 +276,7 @@ double SiStripLorentzAngleCalibration::getParameter(unsigned int index) const
   //   } else {
   //     return parameters_[index];
   //   }
-  return (index >= parameters_.size() ? 0. : parameters_.at(index));
+  return (index >= parameters_.size() ? 0. : parameters_[index]);
 }
 
 //======================================================================
@@ -296,7 +287,7 @@ double SiStripLorentzAngleCalibration::getParameterError(unsigned int index) con
   //   } else {
   //     return paramUncertainties_[index];
   //   }
-  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_.at(index));
+  return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
 }
 
 //======================================================================
@@ -304,10 +295,22 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
-  moduleGroupSelector_.CreateModuleGroups(aliTracker,aliMuon,aliExtras);
+  moduleGroupSelector_.createModuleGroups(aliTracker,aliMuon,aliExtras);
  
-  parameters_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
-  paramUncertainties_.resize(moduleGroupSelector_.GetNumberOfParameters(), 0.);
+  parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+
+  edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration" << "Created with name "
+                            << this->name() << " for readout mode '" << readoutModeName_
+			    << "',\n" << this->numParameters() << " parameters to be determined."
+                            << "\nsaveToDB = " << saveToDB_
+                            << "\n outFileName = " << outFileName_
+                            << "\n N(merge files) = " << mergeFileNames_.size()
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+  if (mergeFileNames_.size()) {
+    edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration"
+                              << "First file to merge: " << mergeFileNames_[0];
+  }
 }
 
 
@@ -468,7 +471,7 @@ double SiStripLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 {
   const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
 
-  return (index < 0 ? 0. : parameters_.at(index));
+  return (index < 0 ? 0. : parameters_[index]);
 }
 
 //======================================================================
