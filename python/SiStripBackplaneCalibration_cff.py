@@ -13,4 +13,7 @@ SiStripBackplaneCalibration = cms.PSet(
     # If we save to DB, the recordNameDBwrite must match what is specified
     # as 'record' in the PoolDBOutputService:
     recordNameDBwrite = cms.string('SiStripBackPlaneCorrectionRcd'),
+
+    # Configuration of the granularity of modules for which the backplane correction is determined
+    BackplaneGranularityGranularity = cms.VPSet(),
     )
