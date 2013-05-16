@@ -14,7 +14,7 @@ SiStripLorentzAngleCalibration_peak = cms.PSet(
     # as 'record' in the PoolDBOutputService:
     recordNameDBwrite = cms.string('SiStripLorentzAngleRcd_peak'),
 
-    # Configuration of the granularity of modules for which the Lorentz angle is determined
+    # Configuration of the granularity for the Lorentz angle calibration
     LorentzAngleGranularity = cms.VPSet(),
     )
 
