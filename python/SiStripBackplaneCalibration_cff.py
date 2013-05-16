@@ -15,5 +15,5 @@ SiStripBackplaneCalibration = cms.PSet(
     recordNameDBwrite = cms.string('SiStripBackPlaneCorrectionRcd'),
 
     # Configuration of the granularity for the backplane correction determination
-    BackplaneGranularityGranularity = cms.VPSet(),
+    BackplaneGranularity = cms.VPSet(),
     )
