@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.2 $
- *  $Date: 2013/05/14 08:01:04 $
+ *  $Revision: 1.1.2.3 $
+ *  $Date: 2013/05/15 15:20:34 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -48,6 +48,12 @@ public:
   // Specify the sub-detectors for which modules are grouped together.
   // Modules belonging to other sub-detectors are ignored.
   void setSubDets(const std::vector<int> &sdets); //FIXME: move somehow to constructor?
+
+  // Set the reference run range for which -1 is returned as index
+  void setReferenceRunRange(const edm::ParameterSet &cfg);
+
+  // Get the reference run range
+  const std::vector<edm::RunNumber_t>& getReferenceRunRange() const;
 
   // Returns the number of parameters.
   unsigned int getNumberOfParameters() const;
@@ -88,6 +94,9 @@ public:
 
   // The ids of the subdetectors for which parameters are determined.
   std::vector<int> subdetids_;
+
+  // Reference run range for which -1 is returned as index
+  std::vector<edm::RunNumber_t> referenceRunRange_;
 };
 
 #endif

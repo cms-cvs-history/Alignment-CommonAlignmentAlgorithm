@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.2 $
- *  $Date: 2013/05/14 08:01:04 $
+ *  $Revision: 1.1.2.3 $
+ *  $Date: 2013/05/15 15:20:34 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -42,6 +42,28 @@ void TkModuleGroupSelector::fillDetIdMap(const unsigned int detid, const unsigne
 void TkModuleGroupSelector::setSubDets(const std::vector<int> &sdets)
 {
   subdetids_ = sdets;
+}
+
+//============================================================================
+void TkModuleGroupSelector::setReferenceRunRange(const edm::ParameterSet &cfg)
+{
+  //extract the reference run range if defined
+  if(cfg.exists("ReferenceRunRange")) {
+    referenceRunRange_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("ReferenceRunRange");
+  }
+  if(referenceRunRange_.size() > 0) {
+    if(referenceRunRange_.size() != 2 || referenceRunRange_.at(0) >= referenceRunRange_.at(1)) {
+      throw cms::Exception("BadConfig")
+        << "@SUB=TkModuleGroupSelector::setReferenceRunRange:\n"
+        << " Excactly two ordered run numbers have to be provided for the reference run range.";
+    }
+  }
+}
+
+//============================================================================
+const std::vector<edm::RunNumber_t>& TkModuleGroupSelector::getReferenceRunRange() const
+{
+  return referenceRunRange_;
 }
 
 //============================================================================
@@ -188,6 +210,11 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
   // Return the index of the parameter that is used for this DetId.
   // If this DetId is not treated, return values < 0.
   
+  // Check whether run lies inside the reference run range. Size of vector has been checked in setReferenceRunRange(...)
+  if(referenceRunRange_.size() == 2 && run >= referenceRunRange_.at(0) && run <= referenceRunRange_.at(1)) {
+    return -1;
+  }
+
   const DetId temp_id(detId);
 
   int index = -1;

@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.12 $
-///  $Date: 2013/05/14 08:01:04 $
+///  $Revision: 1.4.2.13 $
+///  $Date: 2013/05/15 15:20:35 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -157,7 +157,9 @@ SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::Parame
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
   moduleGroupSelector_.setSubDets(sdets);
- 
+  
+  //set the reference run range
+  moduleGroupSelector_.setReferenceRunRange(cfg);
 }
   
 //======================================================================
@@ -270,13 +272,17 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
 
- 
+  const bool refrunrangedefined = moduleGroupSelector_.getReferenceRunRange().size() == 2 ? true : false;
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
                             << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
-                            << "\nsaveToDB = " << saveToDB_
+                            << "\n saveToDB = " << saveToDB_
                             << "\n outFileName = " << outFileName_
                             << "\n N(merge files) = " << mergeFileNames_.size()
-                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs()
+                            << "\n reference run range: [" 
+                            << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(0) : 0)
+                            << "," << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(1) : 0) << "]";
+     
   if (mergeFileNames_.size()) {
     edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration"
                               << "First file to merge: " << mergeFileNames_[0];
