@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.4 $
- *  $Date: 2013/05/16 10:54:41 $
+ *  $Revision: 1.1.2.5 $
+ *  $Date: 2013/05/17 13:20:19 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -210,7 +210,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
   }
 
   // test the order of the runs
-  testGlobalRunRangeOrder();
+  this->testGlobalRunRangeOrder();
 
  
   
