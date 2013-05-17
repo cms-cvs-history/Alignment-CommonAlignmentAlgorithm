@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.4 $
- *  $Date: 2013/05/16 10:54:41 $
+ *  $Revision: 1.1.2.5 $
+ *  $Date: 2013/05/17 13:20:19 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -50,11 +50,8 @@ public:
   // Modules belonging to other sub-detectors are ignored.
   void setSubDets(const std::vector<int> &sdets); //FIXME: move somehow to constructor?
 
-  // Set the reference run range for which -1 is returned as index
-  void setReferenceRunRange(const edm::ParameterSet &cfg);
-
-  // Get the reference run range
-  const std::vector<edm::RunNumber_t>& getReferenceRunRange() const;
+  // Set the reference run. For the corresponding IOV -1 is returned as index
+  void setReferenceRun(const edm::ParameterSet &cfg);
 
   // Returns the number of parameters.
   unsigned int getNumberOfParameters() const;
@@ -81,7 +78,9 @@ public:
                    unsigned int &Id, //id of the first run
                    const std::vector<edm::RunNumber_t> &range, //run range
                    Alignable* iD, //module
-                   const std::list<Alignable*> &selected_alis); //list of modules corresponding to the group. only used if iD != NULL
+                   const std::list<Alignable*> &selected_alis,
+                   const edm::RunNumber_t refrun
+                   ); //list of modules corresponding to the group. only used if iD != NULL
   
   // Fill the container which is a map between the det id and the id of the group
   // to which the module belongs.
@@ -110,7 +109,10 @@ public:
   std::vector<int> subdetids_;
 
   // Reference run range for which -1 is returned as index
-  std::vector<edm::RunNumber_t> referenceRunRange_;
+  edm::RunNumber_t globalReferenceRun_; // =0 means no reference run
+
+  // Reference run per module group
+  std::vector<edm::RunNumber_t> referenceRun_;
 };
 
 #endif

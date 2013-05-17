@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.7 $
-///  $Date: 2013/05/15 15:20:35 $
+///  $Revision: 1.6.2.8 $
+///  $Date: 2013/05/16 10:54:40 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -161,7 +161,7 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
   moduleGroupSelector_.setSubDets(sdets);
 
   //set the reference run range
-  moduleGroupSelector_.setReferenceRunRange(cfg);
+  moduleGroupSelector_.setReferenceRun(cfg);
 
   // SiStripLatency::singleReadOutMode() returns
   // 1: all in peak, 0: all in deco, -1: mixed state
@@ -301,17 +301,13 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
 
-  const bool refrunrangedefined = moduleGroupSelector_.getReferenceRunRange().size() == 2 ? true : false;
   edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration" << "Created with name "
                             << this->name() << " for readout mode '" << readoutModeName_
 			    << "',\n" << this->numParameters() << " parameters to be determined."
                             << "\nsaveToDB = " << saveToDB_
                             << "\n outFileName = " << outFileName_
                             << "\n N(merge files) = " << mergeFileNames_.size()
-                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs()
-                            << "\n reference run range: [" 
-                            << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(0) : 0)
-                            << "," << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(1) : 0) << "]";
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
 
   if (mergeFileNames_.size()) {
     edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration"

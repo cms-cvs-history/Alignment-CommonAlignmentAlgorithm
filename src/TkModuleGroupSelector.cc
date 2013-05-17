@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.5 $
- *  $Date: 2013/05/17 13:20:19 $
+ *  $Revision: 1.1.2.6 $
+ *  $Date: 2013/05/17 13:23:54 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -20,7 +20,8 @@
 
 //============================================================================
 TkModuleGroupSelector::TkModuleGroupSelector(const edm::VParameterSet &cfg) : myGranularityConfig_(cfg),
-                                                                              nparameters_(0)
+                                                                              nparameters_(0),
+                                                                              globalReferenceRun_(0)
 {
   //FIXME: take list of subdetids from which modules are taken
 }
@@ -45,25 +46,12 @@ void TkModuleGroupSelector::setSubDets(const std::vector<int> &sdets)
 }
 
 //============================================================================
-void TkModuleGroupSelector::setReferenceRunRange(const edm::ParameterSet &cfg)
+void TkModuleGroupSelector::setReferenceRun(const edm::ParameterSet &cfg)
 {
   //extract the reference run range if defined
-  if(cfg.exists("ReferenceRunRange")) {
-    referenceRunRange_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("ReferenceRunRange");
+  if(cfg.exists("ReferenceRun")) {
+    globalReferenceRun_ = cfg.getParameter<edm::RunNumber_t>("ReferenceRun");
   }
-  if(referenceRunRange_.size() > 0) {
-    if(referenceRunRange_.size() != 2 || referenceRunRange_.at(0) >= referenceRunRange_.at(1)) {
-      throw cms::Exception("BadConfig")
-        << "@SUB=TkModuleGroupSelector::setReferenceRunRange:\n"
-        << " Excactly two ordered run numbers have to be provided for the reference run range.";
-    }
-  }
-}
-
-//============================================================================
-const std::vector<edm::RunNumber_t>& TkModuleGroupSelector::getReferenceRunRange() const
-{
-  return referenceRunRange_;
 }
 
 //============================================================================
@@ -105,13 +93,15 @@ bool TkModuleGroupSelector::createGroup(
                                         unsigned int &Id, 
                                         const std::vector<edm::RunNumber_t> &range, 
                                         Alignable* iD, 
-                                        const std::list<Alignable*> &selected_alis
+                                        const std::list<Alignable*> &selected_alis,
+                                        const edm::RunNumber_t refrun
                                         )
 {
   bool modules_selected = false;
 
   if(iD != NULL && selected_alis.size() == 0) {
     if(split) {
+      referenceRun_.push_back(refrun);
       firstId_.push_back(Id);
       runRange_.push_back(range);
       this->fillDetIdMap(iD->id(), firstId_.size()-1);
@@ -122,6 +112,7 @@ bool TkModuleGroupSelector::createGroup(
   } else {
     //iD == NULL
     if(!split) {
+      referenceRun_.push_back(refrun);
       firstId_.push_back(Id);
       runRange_.push_back(range);
       for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
@@ -156,7 +147,15 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
         << "Run range array empty!";
     }
     const bool split = this->testSplitOption((*pset));
-    
+
+    edm::RunNumber_t refrun = 0;
+    if((*pset).exists("ReferenceRun")) {
+      refrun = (*pset).getParameter<edm::RunNumber_t>("ReferenceRun");
+    } else {
+      refrun = globalReferenceRun_;
+    }
+
+
     AlignmentParameterSelector selector(aliTracker,aliMuon, aliExtras);
     selector.clear();
     selector.addSelections((*pset).getParameter<edm::ParameterSet> ("levels"));
@@ -170,7 +169,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
              iD != aliDaughts.end(); ++iD) {
           if((*iD)->alignableObjectId() == align::AlignableDetUnit || (*iD)->alignableObjectId() == align::AlignableDet) {
             if(split) {
-              modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>());//last parameter is a empty dummy list
+              modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>(), refrun);//last parameter is a empty dummy list
             } else {
               selected_alis.push_back((*iD));
             }
@@ -180,7 +179,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     }
     
     if(!split) {
-      modules_selected = this->createGroup(split, Id, range, NULL, selected_alis);
+      modules_selected = this->createGroup(split, Id, range, NULL, selected_alis,refrun);
     }
         
     edm::RunNumber_t firstRun = 0; 
@@ -240,11 +239,6 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
 {
   // Return the index of the parameter that is used for this DetId.
   // If this DetId is not treated, return values < 0.
-  
-  // Check whether run lies inside the reference run range. Size of vector has been checked in setReferenceRunRange(...)
-  if(referenceRunRange_.size() == 2 && run >= referenceRunRange_.at(0) && run <= referenceRunRange_.at(1)) {
-    return -1;
-  }
 
   const DetId temp_id(detId);
 
@@ -267,7 +261,7 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
     const unsigned int iAlignableGroup = (*it).second;
     const std::vector<edm::RunNumber_t> &runs = runRange_.at(iAlignableGroup);
     const unsigned int id0 = firstId_.at(iAlignableGroup);
-    
+    const edm::RunNumber_t refrun = referenceRun_.at(iAlignableGroup);
     // assuming runs is never empty (checked in createModuleGroups(..))
     if (runs[0] > run) {
       throw cms::Exception("BadConfig")
@@ -277,7 +271,18 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
     unsigned int iovNum = 0;
     for ( ; iovNum < runs.size(); ++iovNum) {
       if (run >= runs[iovNum]) break;
-    } 
+    }
+    //test whether the iov contains the reference run
+    if(refrun > 0) { //if > 0 a reference run number has been provided
+      if(iovNum+1 == runs.size()) {
+        if(refrun >= runs[iovNum])
+          return -1;
+      } else if( (iovNum+1) < runs.size()) {
+        if(refrun >= runs[iovNum] && refrun < runs[iovNum+1]) {
+          return -1;
+        }
+      }
+    }
     index = id0 + iovNum;
   }
   return index;

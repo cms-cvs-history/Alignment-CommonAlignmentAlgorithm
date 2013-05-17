@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.13 $
-///  $Date: 2013/05/15 15:20:35 $
+///  $Revision: 1.4.2.14 $
+///  $Date: 2013/05/16 10:54:39 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -159,7 +159,7 @@ SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::Parame
   moduleGroupSelector_.setSubDets(sdets);
   
   //set the reference run range
-  moduleGroupSelector_.setReferenceRunRange(cfg);
+  moduleGroupSelector_.setReferenceRun(cfg);
 }
   
 //======================================================================
@@ -271,17 +271,13 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
  
   parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
-
-  const bool refrunrangedefined = moduleGroupSelector_.getReferenceRunRange().size() == 2 ? true : false;
+  
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
                             << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
                             << "\n saveToDB = " << saveToDB_
                             << "\n outFileName = " << outFileName_
                             << "\n N(merge files) = " << mergeFileNames_.size()
-                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs()
-                            << "\n reference run range: [" 
-                            << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(0) : 0)
-                            << "," << (refrunrangedefined ? moduleGroupSelector_.getReferenceRunRange().at(1) : 0) << "]";
+                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
      
   if (mergeFileNames_.size()) {
     edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration"
