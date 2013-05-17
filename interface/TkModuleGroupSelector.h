@@ -10,17 +10,18 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.3 $
- *  $Date: 2013/05/15 15:20:34 $
+ *  $Revision: 1.1.2.4 $
+ *  $Date: 2013/05/16 10:54:41 $
  *  (last update by $Author: jbehr $)
  *
  */
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "Alignment/CommonAlignment/interface/Alignable.h"
 
 #include <vector>
 #include <map>
-
+#include <list>
 
 
 class AlignableTracker;
@@ -69,6 +70,19 @@ public:
   int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
   
  private:
+  // Method to test whether the split option has been turned on
+  const bool testSplitOption(const edm::ParameterSet &pset) const;
+
+  // Test whether the global run range vector is sorted
+  void testGlobalRunRangeOrder() const;
+
+  // Add modules to a specific group which is also created in this function.
+  bool createGroup(const bool split, //create one group for each module, or merge module to one group together
+                   unsigned int &Id, //id of the first run
+                   const std::vector<edm::RunNumber_t> &range, //run range
+                   Alignable* iD, //module
+                   const std::list<Alignable*> &selected_alis); //list of modules corresponding to the group. only used if iD != NULL
+  
   // Fill the container which is a map between the det id and the id of the group
   // to which the module belongs.
   void fillDetIdMap(const unsigned int detid, const unsigned int groupid);

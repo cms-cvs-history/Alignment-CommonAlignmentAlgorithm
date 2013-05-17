@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.3 $
- *  $Date: 2013/05/15 15:20:34 $
+ *  $Revision: 1.1.2.4 $
+ *  $Date: 2013/05/16 10:54:41 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -67,6 +67,76 @@ const std::vector<edm::RunNumber_t>& TkModuleGroupSelector::getReferenceRunRange
 }
 
 //============================================================================
+const bool TkModuleGroupSelector::testSplitOption(const edm::ParameterSet &pset) const
+{
+  bool split = false;
+  if(pset.exists("split")) {
+    split = pset.getParameter<bool>("split");
+  }
+  const size_t npar = pset.getParameterNames().size();
+  
+  if (npar >= 3 && !pset.exists("split")) {
+    throw cms::Exception("BadConfig")
+      << "@SUB=TkModuleGroupSelector:createModuleGroups:"
+      << " >= 3 parameters specified in PSet BUT split parameter was not found! Maybe a typo?";
+  }
+  return split;
+}
+
+//============================================================================
+void TkModuleGroupSelector::testGlobalRunRangeOrder() const
+{
+  edm::RunNumber_t firstRun = 0; 
+  for(std::vector<edm::RunNumber_t>::const_iterator iRun = globalRunRange_.begin(); 
+      iRun != globalRunRange_.end(); ++iRun)  {
+    if((*iRun) > firstRun) {
+      firstRun = (*iRun);
+    } else {
+      throw cms::Exception("BadConfig")
+        << "@SUB=TkModuleGroupSelector:createModuleGroups:"
+        << " Global run range vector not sorted.";
+    }
+  }
+}
+
+//============================================================================
+bool TkModuleGroupSelector::createGroup(
+                                        const bool split, 
+                                        unsigned int &Id, 
+                                        const std::vector<edm::RunNumber_t> &range, 
+                                        Alignable* iD, 
+                                        const std::list<Alignable*> &selected_alis
+                                        )
+{
+  bool modules_selected = false;
+
+  if(iD != NULL && selected_alis.size() == 0) {
+    if(split) {
+      firstId_.push_back(Id);
+      runRange_.push_back(range);
+      this->fillDetIdMap(iD->id(), firstId_.size()-1);
+      modules_selected = true;
+      Id += range.size();
+      nparameters_ += range.size();
+    }
+  } else {
+    //iD == NULL
+    if(!split) {
+      firstId_.push_back(Id);
+      runRange_.push_back(range);
+      for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
+          it != selected_alis.end(); it++) {
+        this->fillDetIdMap((*it)->id(), firstId_.size()-1);
+        modules_selected = true;
+      }
+      Id += range.size();
+      nparameters_ += range.size();
+    }
+  }
+  return modules_selected;
+}
+
+//============================================================================
 void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
                                                AlignableMuon *aliMuon,
                                                AlignableExtras *aliExtras)
@@ -85,17 +155,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
         << "@SUB=TkModuleGroupSelector::createModuleGroups:\n"
         << "Run range array empty!";
     }
-    bool split = false;
-    if((*pset).exists("split")) {
-      split = pset->getParameter<bool>("split");
-    }
-    const size_t npar = (*pset).getParameterNames().size();
-    
-    if (npar >= 3 && !(*pset).exists("split")) {
-      throw cms::Exception("BadConfig")
-        << "@SUB=TkModuleGroupSelector:createModuleGroups:"
-        << " >= 3 parameters specified in PSet BUT split parameter was not found! Maybe a typo?";
-    }
+    const bool split = this->testSplitOption((*pset));
     
     AlignmentParameterSelector selector(aliTracker,aliMuon, aliExtras);
     selector.clear();
@@ -110,12 +170,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
              iD != aliDaughts.end(); ++iD) {
           if((*iD)->alignableObjectId() == align::AlignableDetUnit || (*iD)->alignableObjectId() == align::AlignableDet) {
             if(split) {
-              firstId_.push_back(Id);
-              runRange_.push_back(range);
-              this->fillDetIdMap((*iD)->id(), firstId_.size()-1);
-              modules_selected = true;
-              Id += range.size();
-              nparameters_ += range.size();
+              modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>());//last parameter is a empty dummy list
             } else {
               selected_alis.push_back((*iD));
             }
@@ -123,21 +178,11 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
         }
       }
     }
- 
-   
-    //FIXME: add some checks whether the content of range makes sense?
+    
     if(!split) {
-      firstId_.push_back(Id);
-      runRange_.push_back(range);
-      for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
-          it != selected_alis.end(); it++) {
-        this->fillDetIdMap((*it)->id(), firstId_.size()-1);
-        modules_selected = true;
-      }
-      Id += range.size();
-      nparameters_ += range.size();
+      modules_selected = this->createGroup(split, Id, range, NULL, selected_alis);
     }
-       
+        
     edm::RunNumber_t firstRun = 0; 
     for(std::vector<edm::RunNumber_t>::const_iterator iRun = range.begin(); 
         iRun != range.end(); ++iRun)  {
@@ -157,31 +202,17 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
         << " No module was selected in the module group selector in group " << (firstId_.size()-1)<< ".";
     }
   }
- 
-  //test whether at all a module was selected
-  if(nparameters_ == 0 || mapDetIdGroupId_.size() == 0) {
-    throw cms::Exception("BadConfig") 
-      << "@SUB=TkModuleGroupSelector:createModuleGroups:"
-      << " No module was selected in the module group selector.";
-  }
 
   //copy local set into the global vector of run boundaries
   for(std::set<edm::RunNumber_t>::const_iterator itRun = localRunRange.begin();
       itRun != localRunRange.end(); itRun++) {
     globalRunRange_.push_back((*itRun));
   }
-  
-  edm::RunNumber_t firstRun = 0; 
-  for(std::vector<edm::RunNumber_t>::const_iterator iRun = globalRunRange_.begin(); 
-      iRun != globalRunRange_.end(); ++iRun)  {
-    if((*iRun) > firstRun) {
-      firstRun = (*iRun);
-    } else {
-      throw cms::Exception("BadConfig")
-        << "@SUB=TkModuleGroupSelector:createModuleGroups:"
-        << " Global run range vector not sorted.";
-    }
-  }
+
+  // test the order of the runs
+  testGlobalRunRangeOrder();
+
+ 
   
 }
 
@@ -247,26 +278,7 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
     for ( ; iovNum < runs.size(); ++iovNum) {
       if (run >= runs[iovNum]) break;
     } 
-    
-    // const PXBDetId temp_id(detId);
-    // const unsigned int nLayers=3;
-    // const unsigned int nRings=8;
-    // int index_old = -1;
-    // if(temp_id.subdetId() == PixelSubdetector::PixelBarrel) {
-    //   const PXBDetId id(detId);
-    //   index_old = iovNum*(nLayers*nRings+2)+(id.layer()-1)*(nRings)+(id.module()-1);
-    // } else if(temp_id.subdetId() == PixelSubdetector::PixelEndcap) { 
-    //   const PXFDetId id(detId);
-    //   index_old = iovNum*(nLayers*nRings+2)+nLayers*nRings+(id.side()-1);
-    // }
-
-
     index = id0 + iovNum;
-
-    // std::cout << "debug " << index_old << " " << index << std::endl;
-
-
-
   }
   return index;
 }
