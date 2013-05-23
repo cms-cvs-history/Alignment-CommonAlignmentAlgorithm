@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.9 $
- *  $Date: 2013/05/23 12:54:37 $
+ *  $Revision: 1.1.2.10 $
+ *  $Date: 2013/05/23 12:55:58 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -19,11 +19,27 @@
 #include <set>
 
 //============================================================================
-TkModuleGroupSelector::TkModuleGroupSelector(const edm::VParameterSet &cfg) : myGranularityConfig_(cfg),
-                                                                              nparameters_(0),
-                                                                              globalReferenceRun_(0)
+TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
+                                             AlignableMuon *aliMuon,
+                                             AlignableExtras *aliExtras,
+                                             const edm::ParameterSet &cfg,
+                                             const std::string configurationname,
+                                             const std::vector<int> &sdets
+                                             ) : myGranularityConfig_(cfg.getParameter<edm::VParameterSet>(configurationname)),
+                                                 nparameters_(0),
+                                                 subdetids_(sdets),
+                                                 globalReferenceRun_(0)
+                                                
 {
-  //FIXME: take list of subdetids from which modules are taken
+  //extract the reference run range if defined
+  if(cfg.exists("ReferenceRun")) {
+    globalReferenceRun_ = cfg.getParameter<edm::RunNumber_t>("ReferenceRun");
+  }
+  if(cfg.exists("RunRange")) {
+    globalRunRangeParameter_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("RunRange");
+  }
+
+  this->createModuleGroups(aliTracker,aliMuon,aliExtras);
 }
 
 //============================================================================
@@ -35,22 +51,9 @@ void TkModuleGroupSelector::fillDetIdMap(const unsigned int detid, const unsigne
   } else {
     throw cms::Exception("BadConfig")
       << "@SUB=TkModuleGroupSelector:fillDetIdMap:"
-      << " Module with det ID " << detid << " already selected.";
-  }
-}
-
-//============================================================================
-void TkModuleGroupSelector::setSubDets(const std::vector<int> &sdets)
-{
-  subdetids_ = sdets;
-}
-
-//============================================================================
-void TkModuleGroupSelector::setReferenceRun(const edm::ParameterSet &cfg)
-{
-  //extract the reference run range if defined
-  if(cfg.exists("ReferenceRun")) {
-    globalReferenceRun_ = cfg.getParameter<edm::RunNumber_t>("ReferenceRun");
+      << " Module with det ID " << detid << " configured in group " << groupid
+      << " but it was already selected"
+      << " in group " << mapDetIdGroupId_[detid] << ".";
   }
 }
 
@@ -126,7 +129,8 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     psetnr++;
 
     bool modules_selected = false; //track whether at all a module has been selected in this group
-    const std::vector<edm::RunNumber_t> range = pset->getParameter<std::vector<edm::RunNumber_t> >("RunRange");
+    const std::vector<edm::RunNumber_t> range =
+      (*pset).exists("RunRange") ? pset->getParameter<std::vector<edm::RunNumber_t> >("RunRange") : globalRunRangeParameter_;
     if(range.size() == 0) {
       throw cms::Exception("BadConfig")
         << "@SUB=TkModuleGroupSelector::createModuleGroups:\n"
@@ -140,7 +144,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     } else {
       refrun = globalReferenceRun_;
     }
-
+    
 
     AlignmentParameterSelector selector(aliTracker,aliMuon, aliExtras);
     selector.clear();

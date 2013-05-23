@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.14 $
-///  $Date: 2013/05/16 10:54:39 $
+///  $Revision: 1.4.2.15 $
+///  $Date: 2013/05/17 15:09:33 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -121,7 +121,8 @@ private:
   void writeTree(const SiPixelLorentzAngle *lorentzAngle,
 		 const std::map<unsigned int,float>& errors, const char *treeName) const;
   SiPixelLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
-
+  
+  const edm::ParameterSet cfg_;
   const bool saveToDB_;
   const std::string recordNameDBwrite_;
   const std::string outFileName_;
@@ -134,7 +135,7 @@ private:
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
   
-  TkModuleGroupSelector moduleGroupSelector_;
+  TkModuleGroupSelector *moduleGroupSelector_;
  
 };
 
@@ -144,29 +145,24 @@ private:
 
 SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::ParameterSet &cfg)
   : IntegratedCalibrationBase(cfg),
+    cfg_(cfg),
     saveToDB_(cfg.getParameter<bool>("saveToDB")),
     recordNameDBwrite_(cfg.getParameter<std::string>("recordNameDBwrite")),
     outFileName_(cfg.getParameter<std::string>("treeFile")),
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
     //    alignableTracker_(0),
     siPixelLorentzAngleInput_(0),
-    moduleGroupSelector_(
-                         cfg.getParameter<edm::VParameterSet>("LorentzAngleGranularity")
-                         )
+    moduleGroupSelector_(NULL)
 {
-  //specify the sub-detectors for which the LA is determined
-  const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
-  moduleGroupSelector_.setSubDets(sdets);
-  
-  //set the reference run range
-  moduleGroupSelector_.setReferenceRun(cfg);
+
 }
   
 //======================================================================
 SiPixelLorentzAngleCalibration::~SiPixelLorentzAngleCalibration()
 {
-  //  std::cout << "Destroy SiPixelLorentzAngleCalibration named " << this->name() << std::endl;
-  delete siPixelLorentzAngleInput_;
+  delete moduleGroupSelector_;
+    //  std::cout << "Destroy SiPixelLorentzAngleCalibration named " << this->name() << std::endl;
+    delete siPixelLorentzAngleInput_;
 }
 
 //======================================================================
@@ -191,8 +187,8 @@ SiPixelLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
 
   if (hit.det()) { // otherwise 'constraint hit' or whatever
     
-    const int index = moduleGroupSelector_.getParameterIndexFromDetId(hit.det()->geographicalId(),
-                                                                      eventInfo.eventId_.run());
+    const int index = moduleGroupSelector_->getParameterIndexFromDetId(hit.det()->geographicalId(),
+                                                                       eventInfo.eventId_.run());
     if (index >= 0) { // otherwise not treated
       edm::ESHandle<MagneticField> magneticField;
       setup.get<IdealMagneticFieldRecord>().get(magneticField);
@@ -267,17 +263,26 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
-  moduleGroupSelector_.createModuleGroups(aliTracker,aliMuon,aliExtras);
- 
-  parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
-  paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+  //specify the sub-detectors for which the LA is determined
+  const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
+  
+  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
+                                                   aliMuon,
+                                                   aliExtras,
+                                                   cfg_,
+                                                   "LorentzAngleGranularity",
+                                                   sdets
+                                                   );
+
+  parameters_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
   
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration" << "Created with name "
                             << this->name() << "',\n" << this->numParameters() << " parameters to be determined,"
                             << "\n saveToDB = " << saveToDB_
                             << "\n outFileName = " << outFileName_
                             << "\n N(merge files) = " << mergeFileNames_.size()
-                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+                            << "\n number of IOVs = " << moduleGroupSelector_->numIovs();
      
   if (mergeFileNames_.size()) {
     edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration"
@@ -315,9 +320,9 @@ void SiPixelLorentzAngleCalibration::endOfJob()
     + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
                std::bind2nd(std::not_equal_to<double>(), 0.));
 
-  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_.numIovs(); ++iIOV) {
+  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_->numIovs(); ++iIOV) {
     //  for (unsigned int iIOV = 0; iIOV < 1; ++iIOV) {   // For writing out the modified values
-    cond::Time_t firstRunOfIOV = moduleGroupSelector_.firstRunOfIOV(iIOV);
+    cond::Time_t firstRunOfIOV = moduleGroupSelector_->firstRunOfIOV(iIOV);
     SiPixelLorentzAngle *output = new SiPixelLorentzAngle;
     // Loop on map of values from input and add (possible) parameter results
     for (auto iterIdValue = input->getLorentzAngles().begin();
@@ -328,7 +333,7 @@ void SiPixelLorentzAngleCalibration::endOfJob()
       float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
       //      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
       output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = moduleGroupSelector_.getParameterIndexFromDetId(detId, firstRunOfIOV);
+      int parameterIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId, firstRunOfIOV);
       errors[detId]= this->getParameterError(parameterIndex);
     }
 
@@ -425,7 +430,7 @@ const SiPixelLorentzAngle* SiPixelLorentzAngleCalibration::getLorentzAnglesInput
 double SiPixelLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
-  const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
+  const int index = moduleGroupSelector_->getParameterIndexFromDetId(detId, run);
   return (index < 0 ? 0. : parameters_[index]);
 }
 

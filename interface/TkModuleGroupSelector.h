@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.7 $
- *  $Date: 2013/05/23 12:47:04 $
+ *  $Revision: 1.1.2.8 $
+ *  $Date: 2013/05/23 12:54:37 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -34,24 +34,15 @@ class TkModuleGroupSelector
 {
 public:
   /// Constructor
-  //FIXME: take list of subdetids from which modules are taken
-  explicit TkModuleGroupSelector(const edm::VParameterSet &cfg);
+  explicit TkModuleGroupSelector(AlignableTracker *aliTracker,
+                                 AlignableMuon *aliMuon,
+                                 AlignableExtras *aliExtras,
+                                 const edm::ParameterSet &cfg,
+                                 const std::string configurationname,
+                                 const std::vector<int> &sdets);
   
   /// Destructor
   virtual ~TkModuleGroupSelector() {};
-
-  // Reads and parses the configurations and
-  // constructs the run-dependent module groups.
-  void createModuleGroups(AlignableTracker *aliTracker,
-                          AlignableMuon *aliMuon,
-                          AlignableExtras *aliExtras);
-  
-  // Specify the sub-detectors for which modules are grouped together.
-  // Modules belonging to other sub-detectors are ignored.
-  void setSubDets(const std::vector<int> &sdets); //FIXME: move somehow to constructor?
-
-  // Set the reference run. For the corresponding IOV -1 is returned as index
-  void setReferenceRun(const edm::ParameterSet &cfg);
 
   // Returns the number of parameters.
   unsigned int getNumberOfParameters() const;
@@ -67,6 +58,13 @@ public:
   int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
   
  private:
+  // Reads and parses the configurations and
+  // constructs the run-dependent module groups.
+  void createModuleGroups(AlignableTracker *aliTracker,
+                          AlignableMuon *aliMuon,
+                          AlignableExtras *aliExtras);
+  
+
   // Method used to test the provided configuration for unknown parameters
   void verifyParameterNames(const edm::ParameterSet &pset, unsigned int psetnr) const;
   
@@ -77,9 +75,9 @@ public:
   bool createGroup(
                    unsigned int &Id, //id of the first run
                    const std::vector<edm::RunNumber_t> &range, //run range
-                   const std::list<Alignable*> &selected_alis,
-                   const edm::RunNumber_t refrun
-                   ); //list of modules corresponding to the group. only used if iD != NULL
+                   const std::list<Alignable*> &selected_alis, //list of alignables for which a group is created
+                   const edm::RunNumber_t refrun //reference run number
+                   );
   
   // Fill the container which is a map between the det id and the id of the group
   // to which the module belongs.
@@ -112,6 +110,9 @@ public:
 
   // Reference run per module group
   std::vector<edm::RunNumber_t> referenceRun_;
+  
+  // Global run range
+  std::vector<edm::RunNumber_t> globalRunRangeParameter_;
 };
 
 #endif
