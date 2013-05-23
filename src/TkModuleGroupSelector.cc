@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.6 $
- *  $Date: 2013/05/17 13:23:54 $
+ *  $Revision: 1.1.2.7 $
+ *  $Date: 2013/05/17 15:09:21 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -61,30 +61,7 @@ const bool TkModuleGroupSelector::testSplitOption(const edm::ParameterSet &pset)
   if(pset.exists("split")) {
     split = pset.getParameter<bool>("split");
   }
-  const size_t npar = pset.getParameterNames().size();
-  
-  if (npar >= 3 && !pset.exists("split")) {
-    throw cms::Exception("BadConfig")
-      << "@SUB=TkModuleGroupSelector:createModuleGroups:"
-      << " >= 3 parameters specified in PSet BUT split parameter was not found! Maybe a typo?";
-  }
   return split;
-}
-
-//============================================================================
-void TkModuleGroupSelector::testGlobalRunRangeOrder() const
-{
-  edm::RunNumber_t firstRun = 0; 
-  for(std::vector<edm::RunNumber_t>::const_iterator iRun = globalRunRange_.begin(); 
-      iRun != globalRunRange_.end(); ++iRun)  {
-    if((*iRun) > firstRun) {
-      firstRun = (*iRun);
-    } else {
-      throw cms::Exception("BadConfig")
-        << "@SUB=TkModuleGroupSelector:createModuleGroups:"
-        << " Global run range vector not sorted.";
-    }
-  }
 }
 
 //============================================================================
@@ -128,6 +105,25 @@ bool TkModuleGroupSelector::createGroup(
 }
 
 //============================================================================
+void TkModuleGroupSelector::verifyParameterNames(const edm::ParameterSet &pset, unsigned int psetnr) const
+{
+  std::vector<std::string> parameterNames = pset.getParameterNames();
+  for ( std::vector<std::string>::const_iterator iParam = parameterNames.begin(); 
+        iParam != parameterNames.end(); ++iParam) {
+    const std::string name = (*iParam);
+    if(
+       name != "levels" && name != "RunRange"
+       && name != "split" && name != "ReferenceRun"
+       ) {
+      throw cms::Exception("BadConfig")
+        << "@SUB=TkModuleGroupSelector::verifyParameterNames:"
+        << " Unknown parameter name '" << name << "' in PSet number " << psetnr << ". Maybe a typo?";
+    }
+  }
+}
+
+
+//============================================================================
 void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
                                                AlignableMuon *aliMuon,
                                                AlignableExtras *aliExtras)
@@ -135,10 +131,16 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
   std::set<edm::RunNumber_t> localRunRange;
   nparameters_ = 0;
   unsigned int Id = 0;
+  unsigned int psetnr = 0;
   //loop over all LA groups
   for(edm::VParameterSet::const_iterator pset = myGranularityConfig_.begin();
       pset != myGranularityConfig_.end();
       ++pset) {
+
+    //test for unknown parameters
+    this->verifyParameterNames((*pset),psetnr);
+    psetnr++;
+
     bool modules_selected = false; //track whether at all a module has been selected in this group
     const std::vector<edm::RunNumber_t> range = pset->getParameter<std::vector<edm::RunNumber_t> >("RunRange");
     if(range.size() == 0) {
@@ -164,15 +166,13 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     std::list<Alignable*> selected_alis;
     for(std::vector<Alignable*>::const_iterator it = alis.begin(); it != alis.end(); it++) {
       const std::vector<Alignable*> &aliDaughts = (*it)->deepComponents();
-      if(aliDaughts.size() > 0) {
-        for (std::vector<Alignable*>::const_iterator iD = aliDaughts.begin();
-             iD != aliDaughts.end(); ++iD) {
-          if((*iD)->alignableObjectId() == align::AlignableDetUnit || (*iD)->alignableObjectId() == align::AlignableDet) {
-            if(split) {
-              modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>(), refrun);//last parameter is a empty dummy list
-            } else {
-              selected_alis.push_back((*iD));
-            }
+      for (std::vector<Alignable*>::const_iterator iD = aliDaughts.begin();
+           iD != aliDaughts.end(); ++iD) {
+        if((*iD)->alignableObjectId() == align::AlignableDetUnit || (*iD)->alignableObjectId() == align::AlignableDet) {
+          if(split) {
+            modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>(), refrun);//last parameter is a empty dummy list
+          } else {
+            selected_alis.push_back((*iD));
           }
         }
       }
@@ -207,12 +207,6 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
       itRun != localRunRange.end(); itRun++) {
     globalRunRange_.push_back((*itRun));
   }
-
-  // test the order of the runs
-  this->testGlobalRunRangeOrder();
-
- 
-  
 }
 
 //============================================================================

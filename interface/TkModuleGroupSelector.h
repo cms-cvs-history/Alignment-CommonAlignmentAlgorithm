@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.5 $
- *  $Date: 2013/05/17 13:20:19 $
+ *  $Revision: 1.1.2.6 $
+ *  $Date: 2013/05/17 15:09:23 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -67,11 +67,11 @@ public:
   int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
   
  private:
+  // Method used to test the provided configuration for unknown parameters
+  void verifyParameterNames(const edm::ParameterSet &pset, unsigned int psetnr) const;
+  
   // Method to test whether the split option has been turned on
   const bool testSplitOption(const edm::ParameterSet &pset) const;
-
-  // Test whether the global run range vector is sorted
-  void testGlobalRunRangeOrder() const;
 
   // Add modules to a specific group which is also created in this function.
   bool createGroup(const bool split, //create one group for each module, or merge module to one group together
