@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.6 $
- *  $Date: 2013/05/17 15:09:23 $
+ *  $Revision: 1.1.2.7 $
+ *  $Date: 2013/05/23 12:47:04 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -74,10 +74,9 @@ public:
   const bool testSplitOption(const edm::ParameterSet &pset) const;
 
   // Add modules to a specific group which is also created in this function.
-  bool createGroup(const bool split, //create one group for each module, or merge module to one group together
+  bool createGroup(
                    unsigned int &Id, //id of the first run
                    const std::vector<edm::RunNumber_t> &range, //run range
-                   Alignable* iD, //module
                    const std::list<Alignable*> &selected_alis,
                    const edm::RunNumber_t refrun
                    ); //list of modules corresponding to the group. only used if iD != NULL

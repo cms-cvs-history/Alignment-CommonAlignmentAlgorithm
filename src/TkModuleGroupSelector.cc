@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.7 $
- *  $Date: 2013/05/17 15:09:21 $
+ *  $Revision: 1.1.2.8 $
+ *  $Date: 2013/05/23 12:47:04 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -66,42 +66,58 @@ const bool TkModuleGroupSelector::testSplitOption(const edm::ParameterSet &pset)
 
 //============================================================================
 bool TkModuleGroupSelector::createGroup(
-                                        const bool split, 
                                         unsigned int &Id, 
                                         const std::vector<edm::RunNumber_t> &range, 
-                                        Alignable* iD, 
                                         const std::list<Alignable*> &selected_alis,
                                         const edm::RunNumber_t refrun
                                         )
 {
+  // bool modules_selected = false;
+
+  // if(iD != NULL && selected_alis.size() == 0) {
+  //   if(split) {
+  //     referenceRun_.push_back(refrun);
+  //     firstId_.push_back(Id);
+  //     runRange_.push_back(range);
+  //     this->fillDetIdMap(iD->id(), firstId_.size()-1);
+  //     modules_selected = true;
+  //     Id += range.size();
+  //     nparameters_ += range.size();
+  //   }
+  // } else {
+  //   //iD == NULL
+  //   if(!split) {
+  //     referenceRun_.push_back(refrun);
+  //     firstId_.push_back(Id);
+  //     runRange_.push_back(range);
+  //     for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
+  //         it != selected_alis.end(); it++) {
+  //       this->fillDetIdMap((*it)->id(), firstId_.size()-1);
+  //       modules_selected = true;
+  //     }
+  //     Id += range.size();
+  //     nparameters_ += range.size();
+  //   }
+  // }
+  // return modules_selected;
+
+
   bool modules_selected = false;
 
-  if(iD != NULL && selected_alis.size() == 0) {
-    if(split) {
-      referenceRun_.push_back(refrun);
-      firstId_.push_back(Id);
-      runRange_.push_back(range);
-      this->fillDetIdMap(iD->id(), firstId_.size()-1);
-      modules_selected = true;
-      Id += range.size();
-      nparameters_ += range.size();
-    }
-  } else {
-    //iD == NULL
-    if(!split) {
-      referenceRun_.push_back(refrun);
-      firstId_.push_back(Id);
-      runRange_.push_back(range);
-      for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
-          it != selected_alis.end(); it++) {
-        this->fillDetIdMap((*it)->id(), firstId_.size()-1);
-        modules_selected = true;
-      }
-      Id += range.size();
-      nparameters_ += range.size();
-    }
+  referenceRun_.push_back(refrun);
+  firstId_.push_back(Id);
+  runRange_.push_back(range);
+  for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
+      it != selected_alis.end(); it++) {
+    this->fillDetIdMap((*it)->id(), firstId_.size()-1);
+    modules_selected = true;
   }
+  Id += range.size();
+  nparameters_ += range.size();
+   
   return modules_selected;
+
+
 }
 
 //============================================================================
@@ -164,13 +180,13 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
 
     const std::vector<Alignable*> &alis = selector.selectedAlignables();
     std::list<Alignable*> selected_alis;
-    for(std::vector<Alignable*>::const_iterator it = alis.begin(); it != alis.end(); it++) {
+    for(std::vector<Alignable*>::const_iterator it = alis.begin(); it != alis.end(); ++it) {
       const std::vector<Alignable*> &aliDaughts = (*it)->deepComponents();
       for (std::vector<Alignable*>::const_iterator iD = aliDaughts.begin();
            iD != aliDaughts.end(); ++iD) {
         if((*iD)->alignableObjectId() == align::AlignableDetUnit || (*iD)->alignableObjectId() == align::AlignableDet) {
           if(split) {
-            modules_selected = this->createGroup(split, Id, range, (*iD), std::list<Alignable*>(), refrun);//last parameter is a empty dummy list
+            modules_selected = this->createGroup(Id, range, std::list<Alignable*>(1,(*iD)), refrun);
           } else {
             selected_alis.push_back((*iD));
           }
@@ -179,7 +195,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     }
     
     if(!split) {
-      modules_selected = this->createGroup(split, Id, range, NULL, selected_alis,refrun);
+      modules_selected = this->createGroup(Id, range, selected_alis, refrun);
     }
         
     edm::RunNumber_t firstRun = 0; 
