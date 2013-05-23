@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.8 $
- *  $Date: 2013/05/23 12:47:04 $
+ *  $Revision: 1.1.2.9 $
+ *  $Date: 2013/05/23 12:54:37 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -72,36 +72,6 @@ bool TkModuleGroupSelector::createGroup(
                                         const edm::RunNumber_t refrun
                                         )
 {
-  // bool modules_selected = false;
-
-  // if(iD != NULL && selected_alis.size() == 0) {
-  //   if(split) {
-  //     referenceRun_.push_back(refrun);
-  //     firstId_.push_back(Id);
-  //     runRange_.push_back(range);
-  //     this->fillDetIdMap(iD->id(), firstId_.size()-1);
-  //     modules_selected = true;
-  //     Id += range.size();
-  //     nparameters_ += range.size();
-  //   }
-  // } else {
-  //   //iD == NULL
-  //   if(!split) {
-  //     referenceRun_.push_back(refrun);
-  //     firstId_.push_back(Id);
-  //     runRange_.push_back(range);
-  //     for(std::list<Alignable*>::const_iterator it = selected_alis.begin();
-  //         it != selected_alis.end(); it++) {
-  //       this->fillDetIdMap((*it)->id(), firstId_.size()-1);
-  //       modules_selected = true;
-  //     }
-  //     Id += range.size();
-  //     nparameters_ += range.size();
-  //   }
-  // }
-  // return modules_selected;
-
-
   bool modules_selected = false;
 
   referenceRun_.push_back(refrun);
@@ -116,8 +86,6 @@ bool TkModuleGroupSelector::createGroup(
   nparameters_ += range.size();
    
   return modules_selected;
-
-
 }
 
 //============================================================================
