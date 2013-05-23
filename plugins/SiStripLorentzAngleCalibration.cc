@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.8 $
-///  $Date: 2013/05/16 10:54:40 $
+///  $Revision: 1.6.2.9 $
+///  $Date: 2013/05/17 15:09:30 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -120,7 +120,8 @@ private:
   void writeTree(const SiStripLorentzAngle *lorentzAngle,
 		 const std::map<unsigned int,float> &errors, const char *treeName) const;
   SiStripLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
-
+  
+  const edm::ParameterSet cfg_;
   const std::string readoutModeName_;
   int16_t readoutMode_;
   const bool saveToDB_;
@@ -136,7 +137,7 @@ private:
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
 
-  TkModuleGroupSelector moduleGroupSelector_;
+  TkModuleGroupSelector *moduleGroupSelector_;
 };
 
 //======================================================================
@@ -145,6 +146,7 @@ private:
 
 SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::ParameterSet &cfg)
   : IntegratedCalibrationBase(cfg),
+    cfg_(cfg),
     readoutModeName_(cfg.getParameter<std::string>("readoutMode")),
     saveToDB_(cfg.getParameter<bool>("saveToDB")),
     recordNameDBwrite_(cfg.getParameter<std::string>("recordNameDBwrite")),
@@ -152,16 +154,8 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
     //    alignableTracker_(0),
     siStripLorentzAngleInput_(0),
-    moduleGroupSelector_(
-                     cfg.getParameter<edm::VParameterSet>("LorentzAngleGranularity")
-                     )
+    moduleGroupSelector_(NULL)
 {
-  //specify the sub-detectors for which the LA is determined
-  const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
-  moduleGroupSelector_.setSubDets(sdets);
-
-  //set the reference run range
-  moduleGroupSelector_.setReferenceRun(cfg);
 
   // SiStripLatency::singleReadOutMode() returns
   // 1: all in peak, 0: all in deco, -1: mixed state
@@ -186,6 +180,7 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
 //======================================================================
 SiStripLorentzAngleCalibration::~SiStripLorentzAngleCalibration()
 {
+  delete moduleGroupSelector_;
   //  std::cout << "Destroy SiStripLorentzAngleCalibration named " << this->name() << std::endl;
   delete siStripLorentzAngleInput_;
 }
@@ -216,7 +211,7 @@ SiStripLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
   if (mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
       
-      const int index = moduleGroupSelector_.getParameterIndexFromDetId(hit.det()->geographicalId(),
+      const int index = moduleGroupSelector_->getParameterIndexFromDetId(hit.det()->geographicalId(),
                                                                     eventInfo.eventId_.run());
       if (index >= 0) { // otherwise not treated
         edm::ESHandle<MagneticField> magneticField;
@@ -296,10 +291,19 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                                                 AlignableMuon *aliMuon,
                                                 AlignableExtras *aliExtras)
 {
-  moduleGroupSelector_.createModuleGroups(aliTracker,aliMuon,aliExtras);
+  //specify the sub-detectors for which the LA is determined
+  const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
+  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
+                                                   aliMuon,
+                                                   aliExtras,
+                                                   cfg_,
+                                                   "LorentzAngleGranularity",
+                                                   sdets
+                                                   );
+
  
-  parameters_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
-  paramUncertainties_.resize(moduleGroupSelector_.getNumberOfParameters(), 0.);
+  parameters_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
+  paramUncertainties_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
 
   edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration" << "Created with name "
                             << this->name() << " for readout mode '" << readoutModeName_
@@ -307,7 +311,7 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
                             << "\nsaveToDB = " << saveToDB_
                             << "\n outFileName = " << outFileName_
                             << "\n N(merge files) = " << mergeFileNames_.size()
-                            << "\n number of IOVs = " << moduleGroupSelector_.numIovs();
+                            << "\n number of IOVs = " << moduleGroupSelector_->numIovs();
 
   if (mergeFileNames_.size()) {
     edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration"
@@ -346,8 +350,8 @@ void SiStripLorentzAngleCalibration::endOfJob()
     + count_if(paramUncertainties_.begin(), paramUncertainties_.end(),
                std::bind2nd(std::not_equal_to<double>(), 0.));
 
-  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_.numIovs(); ++iIOV) {
-    cond::Time_t firstRunOfIOV = moduleGroupSelector_.firstRunOfIOV(iIOV);
+  for (unsigned int iIOV = 0; iIOV < moduleGroupSelector_->numIovs(); ++iIOV) {
+    cond::Time_t firstRunOfIOV = moduleGroupSelector_->firstRunOfIOV(iIOV);
     SiStripLorentzAngle *output = new SiStripLorentzAngle;
     // Loop on map of values from input and add (possible) parameter results
     for (auto iterIdValue = input->getLorentzAngles().begin();
@@ -356,7 +360,7 @@ void SiStripLorentzAngleCalibration::endOfJob()
       const unsigned int detId = iterIdValue->first; // key of map is DetId
       const float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
       output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = moduleGroupSelector_.getParameterIndexFromDetId(detId, firstRunOfIOV);
+      int parameterIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId, firstRunOfIOV);
       errors[detId] = this->getParameterError(parameterIndex);
     }
 
@@ -471,7 +475,7 @@ const SiStripLorentzAngle* SiStripLorentzAngleCalibration::getLorentzAnglesInput
 double SiStripLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 							    edm::RunNumber_t run) const
 {
-  const int index = moduleGroupSelector_.getParameterIndexFromDetId(detId, run);
+  const int index = moduleGroupSelector_->getParameterIndexFromDetId(detId, run);
 
   return (index < 0 ? 0. : parameters_[index]);
 }
