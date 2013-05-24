@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.12 $
- *  $Date: 2013/05/24 12:58:38 $
+ *  $Revision: 1.1.2.13 $
+ *  $Date: 2013/05/24 13:13:47 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -28,10 +28,25 @@ TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
                                                  globalReferenceRun_(0)
                                                 
 {
+  //verify that all provided options are known
+  std::vector<std::string> parameterNames = cfg.getParameterNames();
+  for ( std::vector<std::string>::const_iterator iParam = parameterNames.begin(); 
+        iParam != parameterNames.end(); ++iParam) {
+    const std::string name = (*iParam);
+    if(
+       name != "RunRange" && name != "ReferenceRun" && name != "Granularity"
+       ) {
+      throw cms::Exception("BadConfig")
+        << "@SUB=TkModuleGroupSelector::TkModuleGroupSelector:"
+        << " Unknown parameter name '" << name << "' in PSet. Maybe a typo?";
+    }
+  }
+  
   //extract the reference run range if defined
   if(cfg.exists("ReferenceRun")) {
     globalReferenceRun_ = cfg.getParameter<edm::RunNumber_t>("ReferenceRun");
   }
+  //extract run range to be used for all module groups (if not locally overwritten)
   if(cfg.exists("RunRange")) {
     globalRunRangeParameter_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("RunRange");
   }
