@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.15 $
-///  $Date: 2013/05/17 15:09:33 $
+///  $Revision: 1.4.2.16 $
+///  $Date: 2013/05/23 13:52:15 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -260,15 +260,13 @@ double SiPixelLorentzAngleCalibration::getParameterError(unsigned int index) con
 
 //======================================================================
 void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
-                                                AlignableMuon *aliMuon,
-                                                AlignableExtras *aliExtras)
+                                                AlignableMuon * /*aliMuon*/,
+                                                AlignableExtras * /*aliExtras*/)
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
   
   moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   aliMuon,
-                                                   aliExtras,
                                                    cfg_,
                                                    "LorentzAngleGranularity",
                                                    sdets

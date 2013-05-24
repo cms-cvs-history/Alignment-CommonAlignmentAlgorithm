@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.10 $
- *  $Date: 2013/05/23 12:55:58 $
+ *  $Revision: 1.1.2.11 $
+ *  $Date: 2013/05/23 13:52:14 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -20,8 +20,6 @@
 
 //============================================================================
 TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
-                                             AlignableMuon *aliMuon,
-                                             AlignableExtras *aliExtras,
                                              const edm::ParameterSet &cfg,
                                              const std::string configurationname,
                                              const std::vector<int> &sdets
@@ -39,7 +37,7 @@ TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
     globalRunRangeParameter_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("RunRange");
   }
 
-  this->createModuleGroups(aliTracker,aliMuon,aliExtras);
+  this->createModuleGroups(aliTracker);
 }
 
 //============================================================================
@@ -111,9 +109,7 @@ void TkModuleGroupSelector::verifyParameterNames(const edm::ParameterSet &pset, 
 
 
 //============================================================================
-void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
-                                               AlignableMuon *aliMuon,
-                                               AlignableExtras *aliExtras)
+void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker)
 {
   std::set<edm::RunNumber_t> localRunRange;
   nparameters_ = 0;
@@ -146,7 +142,7 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
     }
     
 
-    AlignmentParameterSelector selector(aliTracker,aliMuon, aliExtras);
+    AlignmentParameterSelector selector(aliTracker, NULL, NULL);
     selector.clear();
     selector.addSelections((*pset).getParameter<edm::ParameterSet> ("levels"));
 

@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.9 $
-///  $Date: 2013/05/17 15:09:30 $
+///  $Revision: 1.6.2.10 $
+///  $Date: 2013/05/23 13:55:26 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -288,14 +288,12 @@ double SiStripLorentzAngleCalibration::getParameterError(unsigned int index) con
 
 //======================================================================
 void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
-                                                AlignableMuon *aliMuon,
-                                                AlignableExtras *aliExtras)
+                                                AlignableMuon * /*aliMuon*/,
+                                                AlignableExtras * /*aliExtras*/)
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
   moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   aliMuon,
-                                                   aliExtras,
                                                    cfg_,
                                                    "LorentzAngleGranularity",
                                                    sdets

@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.8 $
- *  $Date: 2013/05/23 12:54:37 $
+ *  $Revision: 1.1.2.9 $
+ *  $Date: 2013/05/23 13:52:14 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -35,8 +35,6 @@ class TkModuleGroupSelector
 public:
   /// Constructor
   explicit TkModuleGroupSelector(AlignableTracker *aliTracker,
-                                 AlignableMuon *aliMuon,
-                                 AlignableExtras *aliExtras,
                                  const edm::ParameterSet &cfg,
                                  const std::string configurationname,
                                  const std::vector<int> &sdets);
@@ -60,11 +58,8 @@ public:
  private:
   // Reads and parses the configurations and
   // constructs the run-dependent module groups.
-  void createModuleGroups(AlignableTracker *aliTracker,
-                          AlignableMuon *aliMuon,
-                          AlignableExtras *aliExtras);
-  
-
+  void createModuleGroups(AlignableTracker *aliTracker);
+                    
   // Method used to test the provided configuration for unknown parameters
   void verifyParameterNames(const edm::ParameterSet &pset, unsigned int psetnr) const;
   
