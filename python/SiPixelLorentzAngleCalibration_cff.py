@@ -14,5 +14,5 @@ SiPixelLorentzAngleCalibration = cms.PSet(
     recordNameDBwrite = cms.string('SiPixelLorentzAngleRcd'),
     
     # Configuration of the granularity for the Lorentz angle calibration
-    LorentzAngleGranularity = cms.VPSet(),
+    LorentzAngleModuleGroups = cms.PSet(),
     )

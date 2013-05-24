@@ -9,8 +9,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : November 2012
-///  $Revision: 1.1.2.9 $
-///  $Date: 2013/05/23 13:52:15 $
+///  $Revision: 1.1.2.10 $
+///  $Date: 2013/05/24 12:58:37 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -313,8 +313,7 @@ void SiStripBackplaneCalibration::beginOfJob(AlignableTracker *aliTracker,
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
   
   moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_,
-                                                   "BackplaneGranularity",
+                                                   cfg_.getParameter<edm::ParameterSet>("BackplaneModuleGroups"),
                                                    sdets
                                                    );
   

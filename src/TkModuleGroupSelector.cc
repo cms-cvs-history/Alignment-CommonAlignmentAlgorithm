@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.11 $
- *  $Date: 2013/05/23 13:52:14 $
+ *  $Revision: 1.1.2.12 $
+ *  $Date: 2013/05/24 12:58:38 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -21,9 +21,8 @@
 //============================================================================
 TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
                                              const edm::ParameterSet &cfg,
-                                             const std::string configurationname,
                                              const std::vector<int> &sdets
-                                             ) : myGranularityConfig_(cfg.getParameter<edm::VParameterSet>(configurationname)),
+                                             ) : myGranularityConfig_(cfg.getParameter<edm::VParameterSet>("Granularity")),
                                                  nparameters_(0),
                                                  subdetids_(sdets),
                                                  globalReferenceRun_(0)

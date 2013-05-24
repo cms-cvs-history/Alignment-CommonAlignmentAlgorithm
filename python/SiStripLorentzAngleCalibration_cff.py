@@ -15,7 +15,7 @@ SiStripLorentzAngleCalibration_peak = cms.PSet(
     recordNameDBwrite = cms.string('SiStripLorentzAngleRcd_peak'),
 
     # Configuration of the granularity for the Lorentz angle calibration
-    LorentzAngleGranularity = cms.VPSet(),
+    LorentzAngleModuleGroups = cms.PSet(),
     )
 
 SiStripLorentzAngleCalibration_deco = SiStripLorentzAngleCalibration_peak.clone(

@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.16 $
-///  $Date: 2013/05/23 13:52:15 $
+///  $Revision: 1.4.2.17 $
+///  $Date: 2013/05/24 12:58:37 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -267,8 +267,7 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
   
   moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_,
-                                                   "LorentzAngleGranularity",
+                                                   cfg_.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"),
                                                    sdets
                                                    );
 

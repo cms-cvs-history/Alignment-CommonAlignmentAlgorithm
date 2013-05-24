@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.10 $
-///  $Date: 2013/05/23 13:55:26 $
+///  $Revision: 1.6.2.11 $
+///  $Date: 2013/05/24 12:58:38 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -294,8 +294,7 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
   moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_,
-                                                   "LorentzAngleGranularity",
+                                                   cfg_.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"),
                                                    sdets
                                                    );
 

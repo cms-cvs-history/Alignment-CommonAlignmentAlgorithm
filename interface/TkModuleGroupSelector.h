@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.9 $
- *  $Date: 2013/05/23 13:52:14 $
+ *  $Revision: 1.1.2.10 $
+ *  $Date: 2013/05/24 12:58:38 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -36,7 +36,6 @@ public:
   /// Constructor
   explicit TkModuleGroupSelector(AlignableTracker *aliTracker,
                                  const edm::ParameterSet &cfg,
-                                 const std::string configurationname,
                                  const std::vector<int> &sdets);
   
   /// Destructor
