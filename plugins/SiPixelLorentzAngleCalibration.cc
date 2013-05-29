@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.17 $
-///  $Date: 2013/05/24 12:58:37 $
+///  $Revision: 1.4.2.18 $
+///  $Date: 2013/05/24 13:13:47 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -122,7 +122,6 @@ private:
 		 const std::map<unsigned int,float>& errors, const char *treeName) const;
   SiPixelLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
   
-  const edm::ParameterSet cfg_;
   const bool saveToDB_;
   const std::string recordNameDBwrite_;
   const std::string outFileName_;
@@ -136,7 +135,7 @@ private:
   std::vector<double> paramUncertainties_;
   
   TkModuleGroupSelector *moduleGroupSelector_;
- 
+  const edm::ParameterSet moduleGroupSelCfg_;
 };
 
 //======================================================================
@@ -145,14 +144,13 @@ private:
 
 SiPixelLorentzAngleCalibration::SiPixelLorentzAngleCalibration(const edm::ParameterSet &cfg)
   : IntegratedCalibrationBase(cfg),
-    cfg_(cfg),
     saveToDB_(cfg.getParameter<bool>("saveToDB")),
     recordNameDBwrite_(cfg.getParameter<std::string>("recordNameDBwrite")),
     outFileName_(cfg.getParameter<std::string>("treeFile")),
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
-    //    alignableTracker_(0),
     siPixelLorentzAngleInput_(0),
-    moduleGroupSelector_(NULL)
+    moduleGroupSelector_(0),
+    moduleGroupSelCfg_(cfg.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"))
 {
 
 }
@@ -198,16 +196,7 @@ SiPixelLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
       // shift due to LA: dx = tan(LA) * dz/2 = mobility * B_y * dz/2,
       // '-' since we have derivative of the residual r = trk -hit
       const double xDerivative = bFieldLocal.y() * dZ * -0.5; // parameter is mobility!
-
-      //      const PXBDetId bdet(hit.det()->geographicalId());
-      //      if(bdet.subdetId()==PixelSubdetector::PixelBarrel){
-      //	printf("TPB: layer: %d ring: %d B: %.5f\n",bdet.layer(),bdet.module(),bFieldLocal.y());
-      //      }
-      //      const PXFDetId fdet(hit.det()->geographicalId());
-      //      if(fdet.subdetId()==PixelSubdetector::PixelEndcap){
-      //	printf("TPF: side: %d B: %.5f\n",fdet.side(),bFieldLocal.y());
-      //      }
-
+      // FIXME: Have to treat that for FPIX yDerivative != 0., due to higher order effects! 
       if (xDerivative) { // If field is zero, this is zero: do not return it
 	const Values derivs(xDerivative, 0.); // yDerivative = 0.
 	outDerivInds.push_back(ValuesIndexPair(derivs, index));
@@ -266,10 +255,7 @@ void SiPixelLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(PixelSubdetector::PixelBarrel)(PixelSubdetector::PixelEndcap);
   
-  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"),
-                                                   sdets
-                                                   );
+  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker, moduleGroupSelCfg_, sdets);
 
   parameters_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
