@@ -7,12 +7,14 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.18 $
-///  $Date: 2013/05/24 13:13:47 $
-///  (last update by $Author: jbehr $)
+///  $Revision: 1.4.2.19 $
+///  $Date: 2013/05/29 08:01:49 $
+///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
+// include 'locally':
+#include "TreeStruct.h"
 
 #include "CondCore/DBOutputService/interface/PoolDBOutputService.h"
 #include "CondFormats/DataRecord/interface/SiPixelLorentzAngleRcd.h"
@@ -119,7 +121,7 @@ private:
   double getParameterForDetId(unsigned int detId, edm::RunNumber_t run) const;
 
   void writeTree(const SiPixelLorentzAngle *lorentzAngle,
-		 const std::map<unsigned int,float>& errors, const char *treeName) const;
+		 const std::map<unsigned int,TreeStruct>& treeInfo, const char *treeName) const;
   SiPixelLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
   
   const bool saveToDB_;
@@ -285,12 +287,12 @@ void SiPixelLorentzAngleCalibration::endOfJob()
   }
   edm::LogInfo("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::endOfJob" << out.str();
 
-  std::map<unsigned int,float> errors;	  // Array of errors for each detId
+  std::map<unsigned int, TreeStruct> treeInfo; // map of TreeStruct for each detId
 
   // now write 'input' tree
   const SiPixelLorentzAngle *input = this->getLorentzAnglesInput(); // never NULL
   const std::string treeName(this->name() + '_');
-  this->writeTree(input, errors, (treeName + "input").c_str()); // empty errors for input...
+  this->writeTree(input, treeInfo, (treeName + "input").c_str()); // empty treeInfo for input...
 
   if (input->getLorentzAngles().empty()) {
     edm::LogError("Alignment") << "@SUB=SiPixelLorentzAngleCalibration::endOfJob"
@@ -312,16 +314,17 @@ void SiPixelLorentzAngleCalibration::endOfJob()
 	 iterIdValue != input->getLorentzAngles().end(); ++iterIdValue) {
       // type of (*iterIdValue) is pair<unsigned int, float>
       const unsigned int detId = iterIdValue->first; // key of map is DetId
-      // Nasty: putLorentzAngle(..) takes float by reference - not even const reference!
-      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
-      //      float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV) + 0.02;  // Added 0.02 for LA in BPIX study
-      output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId, firstRunOfIOV);
-      errors[detId]= this->getParameterError(parameterIndex);
+      const double param = this->getParameterForDetId(detId, firstRunOfIOV);
+      // put result in output, i.e. sum of input and determined parameter, but the nasty
+      // putLorentzAngle(..) takes float by reference - not even const reference:
+      float value = iterIdValue->second + param;
+      output->putLorentzAngle(detId, value);
+      const int paramIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId,firstRunOfIOV);
+      treeInfo[detId] = TreeStruct(param, this->getParameterError(paramIndex), paramIndex);
     }
 
     if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
-      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+      this->writeTree(output, treeInfo, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
     }
 
     if (saveToDB_) { // If requested, write out to DB 
@@ -419,7 +422,7 @@ double SiPixelLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 
 //======================================================================
 void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorentzAngle,
-					       const std::map<unsigned int,float> &errors, 
+					       const std::map<unsigned int,TreeStruct> &treeInfo, 
 					       const char *treeName) const
 {
   if (!lorentzAngle) return;
@@ -434,18 +437,20 @@ void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorent
   TTree *tree = new TTree(treeName, treeName);
   unsigned int id = 0;
   float value = 0.;
-  float error = 0.;
+  TreeStruct treeStruct;
   tree->Branch("detId", &id, "detId/i");
   tree->Branch("value", &value, "value/F");
-  tree->Branch("error", &error, "error/F");
+  tree->Branch("treeStruct", &treeStruct, TreeStruct::LeafList());
 
   for (auto iterIdValue = lorentzAngle->getLorentzAngles().begin();
        iterIdValue != lorentzAngle->getLorentzAngles().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
-    auto idErrPairIter = errors.find(id); // find error for this id - if none, fill 0. in tree
-    error = (idErrPairIter != errors.end() ? idErrPairIter->second : 0.f);
+    // type of (*treeStructIter) is pair<unsigned int, TreeStruct>
+    auto treeStructIter = treeInfo.find(id); // find info for this id
+    // if none found, fill default values in tree:
+    treeStruct = (treeStructIter != treeInfo.end() ? treeStructIter->second : TreeStruct());
     tree->Fill();
   }
   tree->Write();
