@@ -3,8 +3,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.13 $
- *  $Date: 2013/05/24 13:13:47 $
+ *  $Revision: 1.1.2.14 $
+ *  $Date: 2013/05/24 13:24:42 $
  *  (last update by $Author: jbehr $)
  */
 
@@ -22,11 +22,8 @@
 TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
                                              const edm::ParameterSet &cfg,
                                              const std::vector<int> &sdets
-                                             ) : myGranularityConfig_(cfg.getParameter<edm::VParameterSet>("Granularity")),
-                                                 nparameters_(0),
-                                                 subdetids_(sdets),
-                                                 globalReferenceRun_(0)
-                                                
+                                             ) : nparameters_(0),
+                                                 subdetids_(sdets)
 {
   //verify that all provided options are known
   std::vector<std::string> parameterNames = cfg.getParameterNames();
@@ -42,16 +39,19 @@ TkModuleGroupSelector::TkModuleGroupSelector(AlignableTracker *aliTracker,
     }
   }
   
-  //extract the reference run range if defined
-  if(cfg.exists("ReferenceRun")) {
-    globalReferenceRun_ = cfg.getParameter<edm::RunNumber_t>("ReferenceRun");
-  }
-  //extract run range to be used for all module groups (if not locally overwritten)
-  if(cfg.exists("RunRange")) {
-    globalRunRangeParameter_ = cfg.getParameter<std::vector<edm::RunNumber_t> >("RunRange");
-  }
 
-  this->createModuleGroups(aliTracker);
+  //extract the reference run range if defined
+  const edm::RunNumber_t defaultReferenceRun
+    = (cfg.exists("ReferenceRun") ? cfg.getParameter<edm::RunNumber_t>("ReferenceRun") : 0);
+
+  //extract run range to be used for all module groups (if not locally overwritten)
+  const std::vector<edm::RunNumber_t> defaultRunRange
+    = (cfg.exists("RunRange") ? cfg.getParameter<std::vector<edm::RunNumber_t> >("RunRange")
+       : std::vector<edm::RunNumber_t>());
+
+  // finally create everything from configuration
+  this->createModuleGroups(aliTracker, cfg.getParameter<edm::VParameterSet>("Granularity"),
+                           defaultRunRange, defaultReferenceRun);
 }
 
 //============================================================================
@@ -123,15 +123,18 @@ void TkModuleGroupSelector::verifyParameterNames(const edm::ParameterSet &pset, 
 
 
 //============================================================================
-void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker)
+void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker,
+                                               const edm::VParameterSet &granularityConfig,
+                                               const std::vector<edm::RunNumber_t> &defaultRunRange,
+                                               edm::RunNumber_t defaultReferenceRun)
 {
   std::set<edm::RunNumber_t> localRunRange;
   nparameters_ = 0;
   unsigned int Id = 0;
   unsigned int psetnr = 0;
   //loop over all LA groups
-  for(edm::VParameterSet::const_iterator pset = myGranularityConfig_.begin();
-      pset != myGranularityConfig_.end();
+  for(edm::VParameterSet::const_iterator pset = granularityConfig.begin();
+      pset != granularityConfig.end();
       ++pset) {
 
     //test for unknown parameters
@@ -140,8 +143,9 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker)
 
     bool modules_selected = false; //track whether at all a module has been selected in this group
     const std::vector<edm::RunNumber_t> range =
-      (*pset).exists("RunRange") ? pset->getParameter<std::vector<edm::RunNumber_t> >("RunRange") : globalRunRangeParameter_;
-    if(range.size() == 0) {
+      ((*pset).exists("RunRange") ? pset->getParameter<std::vector<edm::RunNumber_t> >("RunRange")
+       : defaultRunRange);
+    if(range.empty()) {
       throw cms::Exception("BadConfig")
         << "@SUB=TkModuleGroupSelector::createModuleGroups:\n"
         << "Run range array empty!";
@@ -152,11 +156,11 @@ void TkModuleGroupSelector::createModuleGroups(AlignableTracker *aliTracker)
     if((*pset).exists("ReferenceRun")) {
       refrun = (*pset).getParameter<edm::RunNumber_t>("ReferenceRun");
     } else {
-      refrun = globalReferenceRun_;
+      refrun = defaultReferenceRun;
     }
     
 
-    AlignmentParameterSelector selector(aliTracker, NULL, NULL);
+    AlignmentParameterSelector selector(aliTracker);
     selector.clear();
     selector.addSelections((*pset).getParameter<edm::ParameterSet> ("levels"));
 

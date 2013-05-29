@@ -10,8 +10,8 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.10 $
- *  $Date: 2013/05/24 12:58:38 $
+ *  $Revision: 1.1.2.11 $
+ *  $Date: 2013/05/24 13:13:47 $
  *  (last update by $Author: jbehr $)
  *
  */
@@ -55,9 +55,11 @@ public:
   int getParameterIndexFromDetId(unsigned int detId, edm::RunNumber_t run) const;
   
  private:
-  // Reads and parses the configurations and
-  // constructs the run-dependent module groups.
-  void createModuleGroups(AlignableTracker *aliTracker);
+  // Constructs the run-dependent module groups from configuration parameters.
+  void createModuleGroups(AlignableTracker *aliTracker,
+                          const edm::VParameterSet &granularityConfig,
+                          const std::vector<edm::RunNumber_t> &defaultRunRange,
+                          edm::RunNumber_t defaultReferenceRun);
                     
   // Method used to test the provided configuration for unknown parameters
   void verifyParameterNames(const edm::ParameterSet &pset, unsigned int psetnr) const;
@@ -76,9 +78,6 @@ public:
   // Fill the container which is a map between the det id and the id of the group
   // to which the module belongs.
   void fillDetIdMap(const unsigned int detid, const unsigned int groupid);
-
-  // The configuration
-  const edm::VParameterSet myGranularityConfig_;
 
   // Array with run boundaries which is a combination
   // of all defined run ranges of all specified module groups.
@@ -99,14 +98,9 @@ public:
   // The ids of the subdetectors for which parameters are determined.
   std::vector<int> subdetids_;
 
-  // Reference run range for which -1 is returned as index
-  edm::RunNumber_t globalReferenceRun_; // =0 means no reference run
-
   // Reference run per module group
   std::vector<edm::RunNumber_t> referenceRun_;
   
-  // Global run range
-  std::vector<edm::RunNumber_t> globalRunRangeParameter_;
 };
 
 #endif
