@@ -7,13 +7,15 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.11 $
-///  $Date: 2013/05/24 12:58:38 $
+///  $Revision: 1.6.2.12 $
+///  $Date: 2013/05/24 13:13:47 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
-#include "Alignment/CommonAlignmentAlgorithm/plugins/SiStripReadoutModeEnums.h"
+// include 'locally':
+#include "SiStripReadoutModeEnums.h"
+#include "TreeStruct.h"
 
 #include "CondCore/DBOutputService/interface/PoolDBOutputService.h"
 #include "CondFormats/DataRecord/interface/SiStripCondDataRecords.h"
@@ -118,10 +120,9 @@ private:
   double getParameterForDetId(unsigned int detId, edm::RunNumber_t run) const;
 
   void writeTree(const SiStripLorentzAngle *lorentzAngle,
-		 const std::map<unsigned int,float> &errors, const char *treeName) const;
+		 const std::map<unsigned int,TreeStruct> &treeInfo, const char *treeName) const;
   SiStripLorentzAngle* createFromTree(const char *fileName, const char *treeName) const;
   
-  const edm::ParameterSet cfg_;
   const std::string readoutModeName_;
   int16_t readoutMode_;
   const bool saveToDB_;
@@ -131,13 +132,13 @@ private:
 
   edm::ESWatcher<SiStripLorentzAngleRcd> watchLorentzAngleRcd_;
 
-  // const AlignableTracker *alignableTracker_;
   SiStripLorentzAngle *siStripLorentzAngleInput_;
 
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
 
   TkModuleGroupSelector *moduleGroupSelector_;
+  const edm::ParameterSet moduleGroupSelCfg_;
 };
 
 //======================================================================
@@ -146,15 +147,14 @@ private:
 
 SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::ParameterSet &cfg)
   : IntegratedCalibrationBase(cfg),
-    cfg_(cfg),
     readoutModeName_(cfg.getParameter<std::string>("readoutMode")),
     saveToDB_(cfg.getParameter<bool>("saveToDB")),
     recordNameDBwrite_(cfg.getParameter<std::string>("recordNameDBwrite")),
     outFileName_(cfg.getParameter<std::string>("treeFile")),
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
-    //    alignableTracker_(0),
     siStripLorentzAngleInput_(0),
-    moduleGroupSelector_(NULL)
+    moduleGroupSelector_(0),
+    moduleGroupSelCfg_(cfg.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"))
 {
 
   // SiStripLatency::singleReadOutMode() returns
@@ -169,11 +169,6 @@ SiStripLorentzAngleCalibration::SiStripLorentzAngleCalibration(const edm::Parame
 	  << "SiStripLorentzAngleCalibration:\n" << "Unknown mode '" 
 	  << readoutModeName_ << "', should be 'peak' or 'deconvolution' .\n";
   }
-
-  // // FIXME: Which granularity, leading to how many parameters?
-  // parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
-  // paramUncertainties_.resize(2, 0.); // dito for errors
-
 
 }
   
@@ -221,7 +216,14 @@ SiStripLorentzAngleCalibration::derivatives(std::vector<ValuesIndexPair> &outDer
         //std::cout << "SiStripLorentzAngleCalibration derivatives " << readoutModeName_ << std::endl;
         const double dZ = this->effectiveThickness(hit.det(), mode, setup);
         // shift due to LA: dx = tan(LA) * dz/2 = mobility * B_y * dz/2,
-        // '-' since we have derivative of the residual r = trk -hit
+        // '-' since we have derivative of the residual r = hit - trk and mu is part of trk model
+	//   (see GF's presentation in alignment meeting 25.10.2012,
+	//    https://indico.cern.ch/conferenceDisplay.py?confId=174266#2012-10-25)
+        // Hmm! StripCPE::fillParams() defines, together with 
+        //      StripCPE::driftDirection(...):
+        //      drift.x = -mobility * by * thickness (full drift from backside)
+        //      So '-' already comes from that, not from mobility being part of
+        //      track model...
         const double xDerivative = bFieldLocal.y() * dZ * -0.5; // parameter is mobility!
         if (xDerivative) { // If field is zero, this is zero: do not return it
           const Values derivs(xDerivative, 0.); // yDerivative = 0.
@@ -267,22 +269,12 @@ bool SiStripLorentzAngleCalibration::setParameterError(unsigned int index, doubl
 //======================================================================
 double SiStripLorentzAngleCalibration::getParameter(unsigned int index) const
 {
-  //   if (index >= parameters_.size()) {
-  //     return 0.;
-  //   } else {
-  //     return parameters_[index];
-  //   }
   return (index >= parameters_.size() ? 0. : parameters_[index]);
 }
 
 //======================================================================
 double SiStripLorentzAngleCalibration::getParameterError(unsigned int index) const
 {
-  //   if (index >= paramUncertainties_.size()) {
-  //     return 0.;
-  //   } else {
-  //     return paramUncertainties_[index];
-  //   }
   return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
 }
 
@@ -293,11 +285,7 @@ void SiStripLorentzAngleCalibration::beginOfJob(AlignableTracker *aliTracker,
 {
   //specify the sub-detectors for which the LA is determined
   const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
-  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_.getParameter<edm::ParameterSet>("LorentzAngleModuleGroups"),
-                                                   sdets
-                                                   );
-
+  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker, moduleGroupSelCfg_, sdets);
  
   parameters_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
@@ -328,12 +316,12 @@ void SiStripLorentzAngleCalibration::endOfJob()
   }
   edm::LogInfo("Alignment") << "@SUB=SiStripLorentzAngleCalibration::endOfJob" << out.str();
 
-  std::map<unsigned int, float> errors;	// Array of errors for each detId
+  std::map<unsigned int, TreeStruct> treeInfo; // map of TreeStruct for each detId
 
   // now write 'input' tree
   const SiStripLorentzAngle *input = this->getLorentzAnglesInput(); // never NULL
   const std::string treeName(this->name() + '_' + readoutModeName_ + '_');
-  this->writeTree(input, errors, (treeName + "input").c_str()); // empty errors for input...
+  this->writeTree(input, treeInfo, (treeName + "input").c_str()); // empty treeInfo for input...
 
   if (input->getLorentzAngles().empty()) {
     edm::LogError("Alignment") << "@SUB=SiStripLorentzAngleCalibration::endOfJob"
@@ -355,14 +343,23 @@ void SiStripLorentzAngleCalibration::endOfJob()
 	 iterIdValue != input->getLorentzAngles().end(); ++iterIdValue) {
       // type of (*iterIdValue) is pair<unsigned int, float>
       const unsigned int detId = iterIdValue->first; // key of map is DetId
-      const float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
-      output->putLorentzAngle(detId, value); // put result in output
-      int parameterIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId, firstRunOfIOV);
-      errors[detId] = this->getParameterError(parameterIndex);
+      // Some code one could use to miscalibrate wrt input:
+      // double param = 0.;
+      // const DetId id(detId);
+      // if (id.subdetId() == 3) { // TIB
+      //   param = (readoutMode_ == kPeakMode ? -0.003 : -0.002);
+      // } else if (id.subdetId() == 5) { // TOB
+      //   param = (readoutMode_ == kPeakMode ? 0.005 : 0.004);
+      // }
+      const double param = this->getParameterForDetId(detId, firstRunOfIOV);
+      // put result in output, i.e. sum of input and determined parameter:
+      output->putLorentzAngle(detId, iterIdValue->second + param);
+      const int paramIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId,firstRunOfIOV);
+      treeInfo[detId] = TreeStruct(param, this->getParameterError(paramIndex), paramIndex);
     }
 
     if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
-      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+      this->writeTree(output, treeInfo, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
     }
 
     if (saveToDB_) { // If requested, write out to DB 
@@ -389,6 +386,9 @@ bool SiStripLorentzAngleCalibration::checkLorentzAngleInput(const edm::EventSetu
   if (!siStripLorentzAngleInput_) {
     setup.get<SiStripLorentzAngleRcd>().get(readoutModeName_, lorentzAngleHandle);
     siStripLorentzAngleInput_ = new SiStripLorentzAngle(*lorentzAngleHandle);
+    // FIXME: Should we call 'watchLorentzAngleRcd_.check(setup)' as well?
+    //        Otherwise could be that next check has to check via following 'else', though
+    //        no new IOV has started... (to be checked)
   } else {
     if (watchLorentzAngleRcd_.check(setup)) { // new IOV of input - but how to check peak vs deco?
       setup.get<SiStripLorentzAngleRcd>().get(readoutModeName_, lorentzAngleHandle);
@@ -479,7 +479,7 @@ double SiStripLorentzAngleCalibration::getParameterForDetId(unsigned int detId,
 
 //======================================================================
 void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorentzAngle,
-					       const std::map<unsigned int, float> &errors,
+					       const std::map<unsigned int, TreeStruct> &treeInfo,
 					       const char *treeName) const
 {
   if (!lorentzAngle) return;
@@ -494,23 +494,24 @@ void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorent
   TTree *tree = new TTree(treeName, treeName);
   unsigned int id = 0;
   float value = 0.;
-  float error = 0.;
+  TreeStruct treeStruct;
   tree->Branch("detId", &id, "detId/i");
   tree->Branch("value", &value, "value/F");
-  tree->Branch("error", &error, "error/F");
+  tree->Branch("treeStruct", &treeStruct, TreeStruct::LeafList());
 
   for (auto iterIdValue = lorentzAngle->getLorentzAngles().begin();
        iterIdValue != lorentzAngle->getLorentzAngles().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
-    auto idErrPairIter = errors.find(id); // find error for this id - if none, fill 0. in tree
-    error = (idErrPairIter != errors.end() ? idErrPairIter->second : 0.f);
+    // type of (*treeStructIter) is pair<unsigned int, TreeStruct>
+    auto treeStructIter = treeInfo.find(id); // find info for this id
+    // if none found, fill default values in tree:
+    treeStruct = (treeStructIter != treeInfo.end() ? treeStructIter->second : TreeStruct());
     tree->Fill();
   }
   tree->Write();
-  delete file; // tree vanishes with the file... (?)
-
+  delete file; // tree vanishes with the file...
 }
 
 //======================================================================
