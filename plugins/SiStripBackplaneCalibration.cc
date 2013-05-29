@@ -9,13 +9,15 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : November 2012
-///  $Revision: 1.1.2.10 $
-///  $Date: 2013/05/24 12:58:37 $
+///  $Revision: 1.1.2.11 $
+///  $Date: 2013/05/24 13:13:47 $
 ///  (last update by $Author: jbehr $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
-#include "Alignment/CommonAlignmentAlgorithm/plugins/SiStripReadoutModeEnums.h"
+// include 'locally':
+#include "SiStripReadoutModeEnums.h"
+#include "TreeStruct.h"
 
 #include "CondCore/DBOutputService/interface/PoolDBOutputService.h"
 #include "CondFormats/DataRecord/interface/SiStripCondDataRecords.h"
@@ -117,10 +119,9 @@ private:
   double getParameterForDetId(unsigned int detId, edm::RunNumber_t run) const;
 
   void writeTree(const SiStripBackPlaneCorrection *backPlaneCorr,
-		 const std::map<unsigned int,float> &errors, const char *treeName) const;
+		 const std::map<unsigned int,TreeStruct> &treeInfo, const char *treeName) const;
   SiStripBackPlaneCorrection* createFromTree(const char *fileName, const char *treeName) const;
 
-  const edm::ParameterSet cfg_;
   const std::string readoutModeName_;
   int16_t readoutMode_;
   const bool saveToDB_;
@@ -130,13 +131,14 @@ private:
 
   edm::ESWatcher<SiStripBackPlaneCorrectionRcd> watchBackPlaneCorrRcd_;
 
-  // const AlignableTracker *alignableTracker_;
   SiStripBackPlaneCorrection *siStripBackPlaneCorrInput_;
 
   std::vector<double> parameters_;
   std::vector<double> paramUncertainties_;
 
   TkModuleGroupSelector *moduleGroupSelector_;
+  const edm::ParameterSet moduleGroupSelCfg_;
+
 };
 
 //======================================================================
@@ -145,15 +147,14 @@ private:
 
 SiStripBackplaneCalibration::SiStripBackplaneCalibration(const edm::ParameterSet &cfg)
   : IntegratedCalibrationBase(cfg),
-    cfg_(cfg),
     readoutModeName_(cfg.getParameter<std::string>("readoutMode")),
     saveToDB_(cfg.getParameter<bool>("saveToDB")),
     recordNameDBwrite_(cfg.getParameter<std::string>("recordNameDBwrite")),
     outFileName_(cfg.getParameter<std::string>("treeFile")),
     mergeFileNames_(cfg.getParameter<std::vector<std::string> >("mergeTreeFiles")),
-    //    alignableTracker_(0),
     siStripBackPlaneCorrInput_(0),
-    moduleGroupSelector_(NULL)
+    moduleGroupSelector_(0),
+    moduleGroupSelCfg_(cfg.getParameter<edm::ParameterSet>("BackplaneModuleGroups"))
 {
 
   // SiStripLatency::singleReadOutMode() returns
@@ -169,11 +170,6 @@ SiStripBackplaneCalibration::SiStripBackplaneCalibration(const edm::ParameterSet
 	  << readoutModeName_ << "', should be 'peak' or 'deconvolution' .\n";
   }
 
-  // FIXME: Which granularity, leading to how many parameters?
-  parameters_.resize(2, 0.); // currently two parameters (TIB, TOB), start value 0.
-  paramUncertainties_.resize(2, 0.); // dito for errors
-
- 
 }
   
 //======================================================================
@@ -207,15 +203,6 @@ SiStripBackplaneCalibration::derivatives(std::vector<ValuesIndexPair> &outDerivI
   edm::ESHandle<SiStripLatency> latency;  
   setup.get<SiStripLatencyRcd>().get(latency);
   const int16_t mode = latency->singleReadOutMode();
-  // std::cout << "SiStripBackplaneCalibration in mode '" << readoutModeName_ << "' finds mode "
-  //           << mode << std::endl;
-  //
-  // std::vector<SiStripLatency::Latency> latencies = const_cast<SiStripLatency*>(latency.product())->allUniqueLatencyAndModes();
-  // for (auto i = latencies.begin(); i != latencies.end(); ++i) {
-  //   std::cout << static_cast<int>(i->latency) << ", mode "
-  //             << static_cast<int>(i->mode) << ", id_apv " << i->detIdAndApv
-  //             << std::endl;
-  // }
 
   if(mode == readoutMode_) {
     if (hit.det()) { // otherwise 'constraint hit' or whatever
@@ -240,9 +227,19 @@ SiStripBackplaneCalibration::derivatives(std::vector<ValuesIndexPair> &outDerivI
 	// 2) 'Direct' effect is shift of effective module position in local z by bp*dz/2
 	//   (see GF's presentation in alignment meeting 25.10.2012,
 	//    https://indico.cern.ch/conferenceDisplay.py?confId=174266#2012-10-25)
-        const double xDerivative = 0.5 * dZ * (mobility * bFieldLocal.y() - tanPsi);
+        //        const double xDerivative = 0.5 * dZ * (mobility * bFieldLocal.y() - tanPsi);
+        //FIXME: +tanPsi? At least that fits the sign of the dr/dw residual 
+        //       in KarimakiDerivatives...
+        const double xDerivative = 0.5 * dZ * (mobility * bFieldLocal.y() + tanPsi);
 	// std::cout << "derivative is " << xDerivative << " for index " << index 
 	// 	  << std::endl;
+//         if (index >= 10) {
+//           std::cout << "mobility * y-field " << mobility * bFieldLocal.y()
+//                     << ", \n tanPsi " << tanPsi /*<< ", dZ " << dZ */ << std::endl;
+//           std::cout << "|tanPsi| - |mobility * y-field| "
+//                     << fabs(tanPsi) - fabs(mobility * bFieldLocal.y())
+//                     << std::endl;
+//         }
 	const Values derivs(xDerivative, 0.); // yDerivative = 0.
 	outDerivInds.push_back(ValuesIndexPair(derivs, index));
       }
@@ -285,22 +282,12 @@ bool SiStripBackplaneCalibration::setParameterError(unsigned int index, double e
 //======================================================================
 double SiStripBackplaneCalibration::getParameter(unsigned int index) const
 {
-  //   if (index >= parameters_.size()) {
-  //     return 0.;
-  //   } else {
-  //     return parameters_[index];
-  //   }
   return (index >= parameters_.size() ? 0. : parameters_[index]);
 }
 
 //======================================================================
 double SiStripBackplaneCalibration::getParameterError(unsigned int index) const
 {
-  //   if (index >= paramUncertainties_.size()) {
-  //     return 0.;
-  //   } else {
-  //     return paramUncertainties_[index];
-  //   }
   return (index >= paramUncertainties_.size() ? 0. : paramUncertainties_[index]);
 }
 
@@ -309,13 +296,11 @@ void SiStripBackplaneCalibration::beginOfJob(AlignableTracker *aliTracker,
                                              AlignableMuon * /*aliMuon*/,
                                              AlignableExtras */*aliExtras*/)
 {
-  //specify the sub-detectors for which the LA is determined
-  const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TOB); //no TEC,TID
+  //specify the sub-detectors for which the back plane correction is determined: all strips
+  const std::vector<int> sdets = boost::assign::list_of(SiStripDetId::TIB)(SiStripDetId::TID)
+    (SiStripDetId::TOB)(SiStripDetId::TEC);
   
-  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker,
-                                                   cfg_.getParameter<edm::ParameterSet>("BackplaneModuleGroups"),
-                                                   sdets
-                                                   );
+  moduleGroupSelector_ = new TkModuleGroupSelector(aliTracker, moduleGroupSelCfg_, sdets);
   
   parameters_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
   paramUncertainties_.resize(moduleGroupSelector_->getNumberOfParameters(), 0.);
@@ -347,12 +332,12 @@ void SiStripBackplaneCalibration::endOfJob()
   }
   edm::LogInfo("Alignment") << "@SUB=SiStripBackplaneCalibration::endOfJob" << out.str();
 
-  std::map<unsigned int, float> errors;	// Array of errors for each detId
+  std::map<unsigned int, TreeStruct> treeInfo; // map of TreeStruct for each detId
 
   // now write 'input' tree
   const SiStripBackPlaneCorrection *input = this->getBackPlaneCorrectionInput(); // never NULL
   const std::string treeName(this->name() + '_' + readoutModeName_ + '_');
-  this->writeTree(input, errors, (treeName + "input").c_str()); // empty errors for input...
+  this->writeTree(input, treeInfo, (treeName + "input").c_str()); // empty treeInfo for input...
 
   if (input->getBackPlaneCorrections().empty()) {
     edm::LogError("Alignment") << "@SUB=SiStripBackplaneCalibration::endOfJob"
@@ -374,14 +359,41 @@ void SiStripBackplaneCalibration::endOfJob()
 	 iterIdValue != input->getBackPlaneCorrections().end(); ++iterIdValue) {
       // type of (*iterIdValue) is pair<unsigned int, float>
       const unsigned int detId = iterIdValue->first; // key of map is DetId
-      const float value = iterIdValue->second + this->getParameterForDetId(detId, firstRunOfIOV);
-      output->putBackPlaneCorrection(detId, value); // put result in output
-      int parameterIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId, firstRunOfIOV);
-      errors[detId] = this->getParameterError(parameterIndex);
+      // Some code one could use to miscalibrate wrt input:
+      // double param = 0.;
+      // const DetId id(detId);
+      // switch (id.subdetId()) {
+      // case 3:
+      //   // delta = 0.025;
+      //   {
+      //     TIBDetId tibId(detId);
+      //     param = tibId.layer() * 0.01;
+      //   }
+      //   break;
+      // case 5:
+      //   //delta = 0.050;
+      //   {
+      //     TOBDetId tobId(detId);
+      //     param = tobId.layer() * 0.015;
+      //   }
+      //   break;
+      // case 4: // TID
+      //   param = 0.03; break;
+      // case 6: // TEC
+      //   param = 0.05; break;
+      //   break;
+      // default:
+      //   std::cout << "unknown subdet " << id.subdetId() << std::endl;
+      // }
+      const double param = this->getParameterForDetId(detId, firstRunOfIOV);
+      // put result in output, i.e. sum of input and determined parameter:
+      output->putBackPlaneCorrection(detId, iterIdValue->second + param);
+      const int paramIndex = moduleGroupSelector_->getParameterIndexFromDetId(detId,firstRunOfIOV);
+      treeInfo[detId] = TreeStruct(param, this->getParameterError(paramIndex), paramIndex);
     }
 
     if (saveToDB_ || nonZeroParamsOrErrors != 0) { // Skip writing mille jobs...
-      this->writeTree(output, errors, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
+      this->writeTree(output, treeInfo, (treeName + Form("result_%lld", firstRunOfIOV)).c_str());
     }
 
     if (saveToDB_) { // If requested, write out to DB 
@@ -482,7 +494,7 @@ double SiStripBackplaneCalibration::getParameterForDetId(unsigned int detId,
 
 //======================================================================
 void SiStripBackplaneCalibration::writeTree(const SiStripBackPlaneCorrection *backPlaneCorrection,
-					    const std::map<unsigned int, float> &errors,
+                                            const std::map<unsigned int, TreeStruct> &treeInfo,
 					    const char *treeName) const
 {
   if (!backPlaneCorrection) return;
@@ -497,22 +509,24 @@ void SiStripBackplaneCalibration::writeTree(const SiStripBackPlaneCorrection *ba
   TTree *tree = new TTree(treeName, treeName);
   unsigned int id = 0;
   float value = 0.;
-  float error = 0.;
+  TreeStruct treeStruct;
   tree->Branch("detId", &id, "detId/i");
   tree->Branch("value", &value, "value/F");
-  tree->Branch("error", &error, "error/F");
+  tree->Branch("treeStruct", &treeStruct, TreeStruct::LeafList());
 
   for (auto iterIdValue = backPlaneCorrection->getBackPlaneCorrections().begin();
        iterIdValue != backPlaneCorrection->getBackPlaneCorrections().end(); ++iterIdValue) {
     // type of (*iterIdValue) is pair<unsigned int, float>
     id = iterIdValue->first; // key of map is DetId
     value = iterIdValue->second;
-    auto idErrPairIter = errors.find(id); // find error for this id - if none, fill 0. in tree
-    error = (idErrPairIter != errors.end() ? idErrPairIter->second : 0.f);
+    // type of (*treeStructIter) is pair<unsigned int, TreeStruct>
+    auto treeStructIter = treeInfo.find(id); // find info for this id
+    // if none found, fill default values in tree:
+    treeStruct = (treeStructIter != treeInfo.end() ? treeStructIter->second : TreeStruct());
     tree->Fill();
   }
   tree->Write();
-  delete file; // tree vanishes with the file... (?)
+  delete file; // tree vanishes with the file...
 
 }
 
