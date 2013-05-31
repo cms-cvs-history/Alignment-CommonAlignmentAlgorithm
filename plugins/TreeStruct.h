@@ -6,6 +6,7 @@
 struct TreeStruct 
 {
   TreeStruct() : delta(0.f), error(0.f), paramIndex(0) {}
+  TreeStruct(int ind) : delta(0.f), error(0.f), paramIndex(ind) {}
   TreeStruct(float del, float err, int ind) : delta(del), error(err), paramIndex(ind) {}
   
   float delta;     /// parameter from alignment algorithm (change wrt. start)

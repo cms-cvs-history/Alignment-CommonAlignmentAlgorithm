@@ -7,8 +7,8 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : September 2012
-///  $Revision: 1.4.2.19 $
-///  $Date: 2013/05/29 08:01:49 $
+///  $Revision: 1.4.2.20 $
+///  $Date: 2013/05/29 09:19:30 $
 ///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
@@ -449,8 +449,13 @@ void SiPixelLorentzAngleCalibration::writeTree(const SiPixelLorentzAngle *lorent
     value = iterIdValue->second;
     // type of (*treeStructIter) is pair<unsigned int, TreeStruct>
     auto treeStructIter = treeInfo.find(id); // find info for this id
-    // if none found, fill default values in tree:
-    treeStruct = (treeStructIter != treeInfo.end() ? treeStructIter->second : TreeStruct());
+    if (treeStructIter != treeInfo.end()) {
+      treeStruct = treeStructIter->second; // info from input map
+    } else { // if none found, fill at least parameter index (using 1st IOV...)
+      const cond::Time_t run1of1stIov = moduleGroupSelector_->firstRunOfIOV(0);
+      const int ind = moduleGroupSelector_->getParameterIndexFromDetId(id, run1of1stIov);
+      treeStruct = TreeStruct(ind);
+    }
     tree->Fill();
   }
   tree->Write();

@@ -7,9 +7,9 @@
 ///
 ///  \author    : Gero Flucke
 ///  date       : August 2012
-///  $Revision: 1.6.2.12 $
-///  $Date: 2013/05/24 13:13:47 $
-///  (last update by $Author: jbehr $)
+///  $Revision: 1.6.2.13 $
+///  $Date: 2013/05/29 08:12:05 $
+///  (last update by $Author: flucke $)
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/IntegratedCalibrationBase.h"
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
@@ -506,8 +506,13 @@ void SiStripLorentzAngleCalibration::writeTree(const SiStripLorentzAngle *lorent
     value = iterIdValue->second;
     // type of (*treeStructIter) is pair<unsigned int, TreeStruct>
     auto treeStructIter = treeInfo.find(id); // find info for this id
-    // if none found, fill default values in tree:
-    treeStruct = (treeStructIter != treeInfo.end() ? treeStructIter->second : TreeStruct());
+    if (treeStructIter != treeInfo.end()) {
+      treeStruct = treeStructIter->second; // info from input map
+    } else { // if none found, fill at least parameter index (using 1st IOV...)
+      const cond::Time_t run1of1stIov = moduleGroupSelector_->firstRunOfIOV(0);
+      const int ind = moduleGroupSelector_->getParameterIndexFromDetId(id, run1of1stIov);
+      treeStruct = TreeStruct(ind);
+    }
     tree->Fill();
   }
   tree->Write();
