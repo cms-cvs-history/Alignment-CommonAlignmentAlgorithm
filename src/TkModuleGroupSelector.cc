@@ -3,9 +3,9 @@
  *
  *  \author Joerg Behr
  *  \date May 2013
- *  $Revision: 1.1.2.14 $
- *  $Date: 2013/05/24 13:24:42 $
- *  (last update by $Author: jbehr $)
+ *  $Revision: 1.1.2.15 $
+ *  $Date: 2013/05/29 07:59:38 $
+ *  (last update by $Author: flucke $)
  */
 
 #include "Alignment/CommonAlignmentAlgorithm/interface/TkModuleGroupSelector.h"
@@ -97,9 +97,13 @@ bool TkModuleGroupSelector::createGroup(
     this->fillDetIdMap((*it)->id(), firstId_.size()-1);
     modules_selected = true;
   }
-  Id += range.size();
-  nparameters_ += range.size();
-   
+  if(refrun > 0 && range.size() > 0) { //FIXME: last condition not really needed?
+    Id += range.size() - 1;
+    nparameters_ += range.size() - 1;
+  } else {
+    Id += range.size();
+    nparameters_ += range.size();  
+  }
   return modules_selected;
 }
 
@@ -277,8 +281,12 @@ int TkModuleGroupSelector::getParameterIndexFromDetId(unsigned int detId,
         if(refrun >= runs[iovNum] && refrun < runs[iovNum+1]) {
           return -1;
         }
+      } else if(run > refrun) {
+        //remove IOV in which the reference run can be found
+        iovNum -= 1;
       }
     }
+
     index = id0 + iovNum;
   }
   return index;
